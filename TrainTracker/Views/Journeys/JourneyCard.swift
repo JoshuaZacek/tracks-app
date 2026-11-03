@@ -2,7 +2,8 @@ import SwiftUI
 
 /// One journey on the Journeys screen: time box on the left, then origin and
 /// destination with the route line between them, filled in teal as the train
-/// travels, and a live status line (countdown, arrival or cancellation).
+/// travels. Underneath: the platform (under the station it's at) and the live
+/// status (countdown, arrival or cancellation).
 struct JourneyCard: View {
     let journey: Journey
     var now: Date = .now
@@ -10,7 +11,7 @@ struct JourneyCard: View {
     var body: some View {
         let model = JourneyCardModel(journey: journey, now: now)
         HStack(alignment: .center, spacing: 14) {
-            TimeBox(time: model.time, tone: model.timeTone, platform: model.platform, platformConfirmed: model.platformConfirmed)
+            TimeBox(time: model.time, tone: model.timeTone)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 10) {
                     Text(journey.from.crs)
@@ -26,12 +27,10 @@ struct JourneyCard: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                if model.status != nil || model.staleNote != nil {
-                    HStack(alignment: .firstTextBaseline) {
-                        if let stale = model.staleNote {
-                            Label(stale, systemImage: "clock.badge.exclamationmark")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                if model.platform != nil || model.status != nil {
+                    HStack(alignment: .center) {
+                        if let platform = model.platform {
+                            PlatformBadge(number: platform, kind: model.platformKind)
                         }
                         Spacer(minLength: 8)
                         if let status = model.status {
@@ -40,6 +39,12 @@ struct JourneyCard: View {
                                 .foregroundStyle(model.statusTone.style)
                         }
                     }
+                    .padding(.top, 6)
+                }
+                if let stale = model.staleNote {
+                    Label(stale, systemImage: "clock.badge.exclamationmark")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -53,7 +58,7 @@ struct JourneyCard: View {
     private func accessibilityText(_ model: JourneyCardModel) -> String {
         var parts = ["\(model.time) from \(journey.from.name) to \(journey.to.name)"]
         if model.timeTone == .late { parts.append("running late") }
-        if let platform = model.platform { parts.append("platform \(platform)\(model.platformConfirmed ? ", confirmed" : "")") }
+        if let platform = model.platform { parts.append("platform \(platform)\(model.platformKind.accessibilityNote)") }
         if let status = model.status { parts.append(status) }
         if let stale = model.staleNote { parts.append(stale) }
         return parts.joined(separator: ", ")
@@ -71,30 +76,81 @@ extension JourneyCardModel.Tone {
     }
 }
 
-/// Grey box with the departure time and, when known, the platform (in full
-/// strength once Darwin confirms it).
+/// Grey box with the departure time: amber when late, struck through in red when cancelled.
 struct TimeBox: View {
     let time: String
     var tone: JourneyCardModel.Tone = .normal
-    let platform: String?
-    var platformConfirmed = false
 
     var body: some View {
-        VStack(spacing: 2) {
-            Text(time)
-                .font(.system(.title3, design: .monospaced).weight(.semibold))
-                .foregroundStyle(tone == .normal ? AnyShapeStyle(.primary) : tone.style)
-                .strikethrough(tone == .cancelled)
-            if let platform {
-                Text("plat. \(platform)")
-                    .font(.footnote.weight(platformConfirmed ? .semibold : .regular))
-                    .foregroundStyle(platformConfirmed ? .primary : .secondary)
+        Text(time)
+            .font(.system(.title3, design: .monospaced).weight(.semibold))
+            .foregroundStyle(tone == .normal ? AnyShapeStyle(.primary) : tone.style)
+            .strikethrough(tone == .cancelled)
+            .frame(minWidth: 74, minHeight: 50)
+            .padding(.horizontal, 10)
+            .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 14, style: .continuous))
+    }
+}
+
+/// "Platform 4" as a small capsule: grey when booked (from the timetable),
+/// teal when Darwin shows it (with a tick once confirmed), amber when it has
+/// changed from the booked one.
+struct PlatformBadge: View {
+    enum Kind: Equatable {
+        case booked
+        case live(confirmed: Bool)
+        case changed(from: String, confirmed: Bool)
+
+        var accessibilityNote: String {
+            switch self {
+            case .booked: ""
+            case .live(let confirmed): confirmed ? ", confirmed" : ""
+            case .changed(let from, let confirmed): ", changed from \(from)\(confirmed ? ", confirmed" : "")"
             }
         }
-        .frame(minWidth: 74, minHeight: 50)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 14, style: .continuous))
+    }
+
+    let number: String
+    var kind: Kind = .booked
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if confirmed {
+                Image(systemName: "checkmark.circle.fill")
+                    .imageScale(.small)
+            }
+            Text("Platform \(number)")
+        }
+        .font(.footnote.weight(.semibold))
+        .foregroundStyle(foreground)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4)
+        .background(background, in: .capsule)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Platform \(number)\(kind.accessibilityNote)")
+    }
+
+    private var confirmed: Bool {
+        switch kind {
+        case .booked: false
+        case .live(let confirmed), .changed(_, let confirmed): confirmed
+        }
+    }
+
+    private var foreground: AnyShapeStyle {
+        switch kind {
+        case .booked: AnyShapeStyle(.secondary)
+        case .live: AnyShapeStyle(.tint)
+        case .changed: AnyShapeStyle(Color.orange)
+        }
+    }
+
+    private var background: AnyShapeStyle {
+        switch kind {
+        case .booked: AnyShapeStyle(Color(.tertiarySystemFill))
+        case .live: AnyShapeStyle(Color.accentColor.opacity(0.14))
+        case .changed: AnyShapeStyle(Color.orange.opacity(0.14))
+        }
     }
 }
 

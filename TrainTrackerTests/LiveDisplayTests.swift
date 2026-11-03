@@ -59,11 +59,17 @@ struct LiveDisplayTests {
         #expect(stale.staleNote == "Last updated 09:00")
     }
 
-    @Test func livePlatformWinsOverBooked() {
-        #expect(JourneyCardModel(journey: journey(nil)).platform == "3")
-        let live = JourneyCardModel(journey: journey(live(.live, platform: Platform(number: "5A", source: .live, confirmed: true))))
-        #expect(live.platform == "5A")
-        #expect(live.platformConfirmed)
+    @Test func platformBookedLiveOrChanged() {
+        let booked = JourneyCardModel(journey: journey(nil))
+        #expect(booked.platform == "3")
+        #expect(booked.platformKind == .booked)
+
+        let same = JourneyCardModel(journey: journey(live(.live, platform: Platform(number: "3", source: .live, confirmed: false))))
+        #expect(same.platformKind == .live(confirmed: false))
+
+        let changed = JourneyCardModel(journey: journey(live(.live, platform: Platform(number: "5A", source: .live, confirmed: true))))
+        #expect(changed.platform == "5A")
+        #expect(changed.platformKind == .changed(from: "3", confirmed: true))
     }
 
     // MARK: Real responses

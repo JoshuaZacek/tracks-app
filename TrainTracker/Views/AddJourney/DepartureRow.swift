@@ -14,11 +14,13 @@ struct DepartureRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(departure.destination.name)
                     .font(.body.weight(.semibold))
+                    .lineLimit(1)
+                // Wraps rather than cutting off "Platform" behind a long operator name.
                 Text(details)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
-            .lineLimit(1)
             Spacer(minLength: 8)
             if let arrival = departure.arrival {
                 let time = RailTime.hhmm(arrival.scheduledArrival)
@@ -84,9 +86,9 @@ struct DepartureRow: View {
         if departure.live?.isCancelled == true {
             parts.append("Cancelled")
         } else if let platform = departure.live?.platform {
-            parts.append("plat. \(platform.number)\(platform.confirmed ? " ✓" : "")")
+            parts.append("Platform \(platform.number)\(platform.confirmed ? " ✓" : "")")
         } else if let platform = departure.bookedPlatform {
-            parts.append("plat. \(platform)")
+            parts.append("Platform \(platform)")
         }
         return parts.joined(separator: " · ")
     }
