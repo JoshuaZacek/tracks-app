@@ -1,0 +1,296 @@
+{
+ "id": "5a71219e-a4ae-4d19-ab98-60a9baa33a08",
+ "trainUid": "C02036",
+ "runDate": "2026-11-03",
+ "date": "2026-11-03",
+ "headcode": "1N04",
+ "operator": {
+  "code": "GR",
+  "name": "LNER"
+ },
+ "from": {
+  "crs": "KGX",
+  "name": "London Kings Cross",
+  "lat": 51.53088842,
+  "lon": -0.122921342
+ },
+ "to": {
+  "crs": "YRK",
+  "name": "York",
+  "lat": 53.95797924,
+  "lon": -1.093176915
+ },
+ "scheduledDeparture": "2026-11-03T09:33:00+00:00",
+ "scheduledArrival": "2026-11-03T11:27:00+00:00",
+ "bookedPlatform": "3",
+ "prefs": {},
+ "createdAt": "2026-11-03T10:17:23+00:00",
+ "archivedAt": null,
+ "callingPoints": [
+  {
+   "crs": "KGX",
+   "name": "London Kings Cross",
+   "lat": 51.53088842,
+   "lon": -0.122921342,
+   "scheduledArrival": null,
+   "scheduledDeparture": "2026-11-03T09:33:00+00:00",
+   "bookedPlatform": "3",
+   "live": null
+  },
+  {
+   "crs": "SVG",
+   "name": "Stevenage",
+   "lat": 51.90169,
+   "lon": -0.20711,
+   "scheduledArrival": null,
+   "scheduledDeparture": "2026-11-03T09:55:00+00:00",
+   "bookedPlatform": "3",
+   "live": null
+  },
+  {
+   "crs": "GRA",
+   "name": "Grantham",
+   "lat": 52.90649078,
+   "lon": -0.642452874,
+   "scheduledArrival": "2026-11-03T10:37:00+00:00",
+   "scheduledDeparture": "2026-11-03T10:39:00+00:00",
+   "bookedPlatform": "2",
+   "live": null
+  },
+  {
+   "crs": "YRK",
+   "name": "York",
+   "lat": 53.95797924,
+   "lon": -1.093176915,
+   "scheduledArrival": "2026-11-03T11:27:00+00:00",
+   "scheduledDeparture": "2026-11-03T11:30:00+00:00",
+   "bookedPlatform": "5",
+   "live": null
+  },
+  {
+   "crs": "NTR",
+   "name": "Northallerton",
+   "lat": 54.3330789,
+   "lon": -1.441275691,
+   "scheduledArrival": "2026-11-03T11:48:00+00:00",
+   "scheduledDeparture": "2026-11-03T11:49:00+00:00",
+   "bookedPlatform": null,
+   "live": null
+  },
+  {
+   "crs": "DAR",
+   "name": "Darlington",
+   "lat": 54.52045136,
+   "lon": -1.547328479,
+   "scheduledArrival": "2026-11-03T12:01:00+00:00",
+   "scheduledDeparture": "2026-11-03T12:02:00+00:00",
+   "bookedPlatform": "4B",
+   "live": null
+  },
+  {
+   "crs": "DHM",
+   "name": "Durham",
+   "lat": 54.77939227,
+   "lon": -1.581756017,
+   "scheduledArrival": "2026-11-03T12:18:00+00:00",
+   "scheduledDeparture": "2026-11-03T12:20:00+00:00",
+   "bookedPlatform": "2",
+   "live": null
+  },
+  {
+   "crs": "NCL",
+   "name": "Newcastle",
+   "lat": 54.96822056,
+   "lon": -1.617285496,
+   "scheduledArrival": "2026-11-03T12:35:00+00:00",
+   "scheduledDeparture": null,
+   "bookedPlatform": "4",
+   "live": null
+  }
+ ],
+ "fromIndex": 0,
+ "toIndex": 3,
+ "route": [
+  {
+   "lat": 51.56478,
+   "lon": -0.10565,
+   "leg": 0,
+   "f": 0.1951219512195122
+  },
+  {
+   "lat": 51.59829,
+   "lon": -0.12014,
+   "leg": 0,
+   "f": 0.2682926829268293
+  },
+  {
+   "lat": 51.69729,
+   "lon": -0.19236,
+   "leg": 0,
+   "f": 0.4878048780487805
+  },
+  {
+   "lat": 51.80105,
+   "lon": -0.20407,
+   "leg": 0,
+   "f": 0.7317073170731707
+  },
+  {
+   "lat": 51.95329,
+   "lon": -0.26348,
+   "leg": 1,
+   "f": 0.08433734939759036
+  },
+  {
+   "lat": 52.08469,
+   "lon": -0.26118,
+   "leg": 1,
+   "f": 0.1927710843373494
+  },
+  {
+   "lat": 52.12474,
+   "lon": -0.28117,
+   "leg": 1,
+   "f": 0.2289156626506024
+  },
+  {
+   "lat": 52.32866,
+   "lon": -0.19206,
+   "leg": 1,
+   "f": 0.39759036144578314
+  },
+  {
+   "lat": 52.57499236,
+   "lon": -0.249830061,
+   "leg": 1,
+   "f": 0.6385542168674698
+  },
+  {
+   "lat": 53.08191008,
+   "lon": -0.800110846,
+   "leg": 2,
+   "f": 0.19791666666666666
+  },
+  {
+   "lat": 53.31517556,
+   "lon": -0.947878147,
+   "leg": 2,
+   "f": 0.3958333333333333
+  },
+  {
+   "lat": 53.5214971,
+   "lon": -1.140234479,
+   "leg": 2,
+   "f": 0.59375
+  },
+  {
+   "lat": 54.22822386,
+   "lon": -1.372589271,
+   "leg": 3,
+   "f": 0.7428571428571429
+  }
+ ],
+ "live": {
+  "state": "departed",
+  "checkedAt": "2026-11-03T10:17:23+00:00",
+  "nextPollSeconds": 30,
+  "stale": false,
+  "message": null,
+  "service": {
+   "rid": "202611036702036",
+   "scheduledDeparture": "2026-11-03T09:33:00+00:00",
+   "expectedDeparture": null,
+   "actualDeparture": "2026-11-03T09:32:00+00:00",
+   "delayMinutes": -1,
+   "platform": null,
+   "isCancelled": false,
+   "cancelReason": null,
+   "delayReason": null
+  },
+  "progress": {
+   "stops": [
+    {
+     "crs": "KGX",
+     "name": "London Kings Cross",
+     "scheduled": "2026-11-03T09:33:00+00:00",
+     "expected": null,
+     "actual": "2026-11-03T09:32:00+00:00",
+     "passed": true,
+     "isCancelled": false,
+     "delayMinutes": -1,
+     "platform": null
+    },
+    {
+     "crs": "SVG",
+     "name": "Stevenage",
+     "scheduled": "2026-11-03T09:55:00+00:00",
+     "expected": null,
+     "actual": "2026-11-03T09:52:00+00:00",
+     "passed": true,
+     "isCancelled": false,
+     "delayMinutes": -3,
+     "platform": {
+      "number": "3",
+      "source": "live",
+      "confirmed": true
+     }
+    },
+    {
+     "crs": "GRA",
+     "name": "Grantham",
+     "scheduled": "2026-11-03T10:37:00+00:00",
+     "expected": "2026-11-03T10:37:00+00:00",
+     "actual": null,
+     "passed": false,
+     "isCancelled": false,
+     "delayMinutes": 0,
+     "platform": {
+      "number": "2",
+      "source": "live",
+      "confirmed": false
+     }
+    },
+    {
+     "crs": "YRK",
+     "name": "York",
+     "scheduled": "2026-11-03T11:27:00+00:00",
+     "expected": "2026-11-03T11:27:00+00:00",
+     "actual": null,
+     "passed": false,
+     "isCancelled": false,
+     "delayMinutes": 0,
+     "platform": {
+      "number": "5",
+      "source": "live",
+      "confirmed": false
+     }
+    }
+   ],
+   "lastPassedIndex": 1,
+   "nextIndex": 2,
+   "arrived": false
+  },
+  "position": {
+   "source": "darwin",
+   "last": {
+    "tiploc": "HOLME",
+    "crs": "XHO",
+    "name": "Holme Jn.",
+    "lat": null,
+    "lon": null,
+    "time": "2026-11-03T10:16:00+00:00",
+    "event": "pass"
+   },
+   "next": {
+    "tiploc": "FLETTON",
+    "crs": null,
+    "name": "Fletton Jn.",
+    "lat": null,
+    "lon": null,
+    "expectedTime": "2026-11-03T10:19:00+00:00"
+   },
+   "legFrom": "SVG",
+   "legTo": "GRA"
+  }
+ }
+}

@@ -87,7 +87,8 @@ struct AddJourneyView: View {
                 } label: {
                     DepartureRow(
                         departure: d,
-                        departed: d.scheduledDeparture < .now,
+                        // A late train that hasn't left yet isn't dimmed.
+                        departed: d.live?.actualDeparture != nil || (d.live?.expectedDeparture ?? d.scheduledDeparture) < .now,
                         saved: isSaved(d),
                         saving: savingID == d.id
                     )

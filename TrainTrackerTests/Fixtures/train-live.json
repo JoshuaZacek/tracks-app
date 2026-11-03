@@ -1,0 +1,247 @@
+{
+ "trainUid": "C02036",
+ "runDate": "2026-11-03",
+ "headcode": "1N04",
+ "operator": {
+  "code": "GR",
+  "name": "LNER"
+ },
+ "callingPoints": [
+  {
+   "crs": "KGX",
+   "name": "London Kings Cross",
+   "lat": 51.53088842,
+   "lon": -0.122921342,
+   "scheduledArrival": null,
+   "scheduledDeparture": "2026-11-03T09:33:00+00:00",
+   "bookedPlatform": "3",
+   "live": {
+    "expectedArrival": null,
+    "expectedDeparture": null,
+    "actualArrival": null,
+    "actualDeparture": "2026-11-03T09:32:00+00:00",
+    "platform": null,
+    "isCancelled": false
+   }
+  },
+  {
+   "crs": "SVG",
+   "name": "Stevenage",
+   "lat": 51.90169,
+   "lon": -0.20711,
+   "scheduledArrival": null,
+   "scheduledDeparture": "2026-11-03T09:55:00+00:00",
+   "bookedPlatform": "3",
+   "live": {
+    "expectedArrival": null,
+    "expectedDeparture": null,
+    "actualArrival": "2026-11-03T09:52:00+00:00",
+    "actualDeparture": "2026-11-03T09:55:00+00:00",
+    "platform": {
+     "number": "3",
+     "source": "live",
+     "confirmed": true
+    },
+    "isCancelled": false
+   }
+  },
+  {
+   "crs": "GRA",
+   "name": "Grantham",
+   "lat": 52.90649078,
+   "lon": -0.642452874,
+   "scheduledArrival": "2026-11-03T10:37:00+00:00",
+   "scheduledDeparture": "2026-11-03T10:39:00+00:00",
+   "bookedPlatform": "2",
+   "live": {
+    "expectedArrival": "2026-11-03T10:37:00+00:00",
+    "expectedDeparture": "2026-11-03T10:39:00+00:00",
+    "actualArrival": null,
+    "actualDeparture": null,
+    "platform": {
+     "number": "2",
+     "source": "live",
+     "confirmed": false
+    },
+    "isCancelled": false
+   }
+  },
+  {
+   "crs": "YRK",
+   "name": "York",
+   "lat": 53.95797924,
+   "lon": -1.093176915,
+   "scheduledArrival": "2026-11-03T11:27:00+00:00",
+   "scheduledDeparture": "2026-11-03T11:30:00+00:00",
+   "bookedPlatform": "5",
+   "live": {
+    "expectedArrival": "2026-11-03T11:27:00+00:00",
+    "expectedDeparture": "2026-11-03T11:30:00+00:00",
+    "actualArrival": null,
+    "actualDeparture": null,
+    "platform": {
+     "number": "5",
+     "source": "live",
+     "confirmed": false
+    },
+    "isCancelled": false
+   }
+  },
+  {
+   "crs": "NTR",
+   "name": "Northallerton",
+   "lat": 54.3330789,
+   "lon": -1.441275691,
+   "scheduledArrival": "2026-11-03T11:48:00+00:00",
+   "scheduledDeparture": "2026-11-03T11:49:00+00:00",
+   "bookedPlatform": null,
+   "live": {
+    "expectedArrival": "2026-11-03T11:48:00+00:00",
+    "expectedDeparture": "2026-11-03T11:49:00+00:00",
+    "actualArrival": null,
+    "actualDeparture": null,
+    "platform": {
+     "number": "2",
+     "source": "live",
+     "confirmed": false
+    },
+    "isCancelled": false
+   }
+  },
+  {
+   "crs": "DAR",
+   "name": "Darlington",
+   "lat": 54.52045136,
+   "lon": -1.547328479,
+   "scheduledArrival": "2026-11-03T12:01:00+00:00",
+   "scheduledDeparture": "2026-11-03T12:02:00+00:00",
+   "bookedPlatform": "4B",
+   "live": {
+    "expectedArrival": "2026-11-03T12:01:00+00:00",
+    "expectedDeparture": "2026-11-03T12:02:00+00:00",
+    "actualArrival": null,
+    "actualDeparture": null,
+    "platform": null,
+    "isCancelled": false
+   }
+  },
+  {
+   "crs": "DHM",
+   "name": "Durham",
+   "lat": 54.77939227,
+   "lon": -1.581756017,
+   "scheduledArrival": "2026-11-03T12:18:00+00:00",
+   "scheduledDeparture": "2026-11-03T12:20:00+00:00",
+   "bookedPlatform": "2",
+   "live": {
+    "expectedArrival": "2026-11-03T12:18:00+00:00",
+    "expectedDeparture": "2026-11-03T12:20:00+00:00",
+    "actualArrival": null,
+    "actualDeparture": null,
+    "platform": null,
+    "isCancelled": false
+   }
+  },
+  {
+   "crs": "NCL",
+   "name": "Newcastle",
+   "lat": 54.96822056,
+   "lon": -1.617285496,
+   "scheduledArrival": "2026-11-03T12:35:00+00:00",
+   "scheduledDeparture": null,
+   "bookedPlatform": "4",
+   "live": {
+    "expectedArrival": "2026-11-03T12:35:00+00:00",
+    "expectedDeparture": null,
+    "actualArrival": null,
+    "actualDeparture": null,
+    "platform": {
+     "number": "4",
+     "source": "live",
+     "confirmed": false
+    },
+    "isCancelled": false
+   }
+  }
+ ],
+ "route": [
+  {
+   "lat": 51.56478,
+   "lon": -0.10565,
+   "leg": 0,
+   "f": 0.1951219512195122
+  },
+  {
+   "lat": 51.59829,
+   "lon": -0.12014,
+   "leg": 0,
+   "f": 0.2682926829268293
+  },
+  {
+   "lat": 51.69729,
+   "lon": -0.19236,
+   "leg": 0,
+   "f": 0.4878048780487805
+  },
+  {
+   "lat": 51.80105,
+   "lon": -0.20407,
+   "leg": 0,
+   "f": 0.7317073170731707
+  },
+  {
+   "lat": 51.95329,
+   "lon": -0.26348,
+   "leg": 1,
+   "f": 0.08433734939759036
+  },
+  {
+   "lat": 52.08469,
+   "lon": -0.26118,
+   "leg": 1,
+   "f": 0.1927710843373494
+  },
+  {
+   "lat": 52.12474,
+   "lon": -0.28117,
+   "leg": 1,
+   "f": 0.2289156626506024
+  },
+  {
+   "lat": 52.32866,
+   "lon": -0.19206,
+   "leg": 1,
+   "f": 0.39759036144578314
+  },
+  {
+   "lat": 52.57499236,
+   "lon": -0.249830061,
+   "leg": 1,
+   "f": 0.6385542168674698
+  },
+  {
+   "lat": 53.08191008,
+   "lon": -0.800110846,
+   "leg": 2,
+   "f": 0.19791666666666666
+  },
+  {
+   "lat": 53.31517556,
+   "lon": -0.947878147,
+   "leg": 2,
+   "f": 0.3958333333333333
+  },
+  {
+   "lat": 53.5214971,
+   "lon": -1.140234479,
+   "leg": 2,
+   "f": 0.59375
+  },
+  {
+   "lat": 54.22822386,
+   "lon": -1.372589271,
+   "leg": 3,
+   "f": 0.7428571428571429
+  }
+ ]
+}

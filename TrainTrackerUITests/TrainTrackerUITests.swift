@@ -7,6 +7,7 @@
 //  store so saved journeys are untouched.
 //
 
+import CoreLocation
 import XCTest
 
 final class TrainTrackerUITests: XCTestCase {
@@ -74,11 +75,30 @@ final class TrainTrackerUITests: XCTestCase {
         attachScreenshot(of: app, named: "Past section")
     }
 
-    /// Needs location allowed and set, e.g.
-    /// `xcrun simctl privacy booted grant location com.joshuazacek.TrainTracker`
-    /// and `xcrun simctl location booted set 51.5320,-0.1233` (King's Cross).
+    /// Real trains: needs some running (daytime). Opens the journey that's under way
+    /// and checks the train is shown between stops.
+    @MainActor
+    func testLiveJourneyOpensWithTheTrainOnTheMap() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTesting", "-seedJourneys"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Live"].waitForExistence(timeout: 30), "no trains running right now?")
+        sleep(3) // let live summaries arrive
+        attachScreenshot(of: app, named: "Journeys with live data")
+
+        app.descendants(matching: .any).matching(identifier: "journeyCard").firstMatch.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["trainIndicator"].waitForExistence(timeout: 20))
+        sleep(3) // map tiles
+        attachScreenshot(of: app, named: "Journey detail")
+        app.swipeUp()
+        attachScreenshot(of: app, named: "Journey detail: stops")
+    }
+
+    /// Simulates being at King's Cross, allowing location if asked.
     @MainActor
     func testNearbyStationsListedWithoutSearching() throws {
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 51.5320, longitude: -0.1233))
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting"]
         app.launch()
@@ -86,6 +106,12 @@ final class TrainTrackerUITests: XCTestCase {
         app.buttons["Add journey"].firstMatch.tap()
         app.buttons["fromStation"].tap()
         let kingsCross = app.buttons["station-KGX"]
+        if !kingsCross.waitForExistence(timeout: 3) {
+            // Location not allowed yet: ask, and accept the system prompt.
+            app.buttons["Find stations near me"].tap()
+            let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow While Using App"]
+            if allow.waitForExistence(timeout: 5) { allow.tap() }
+        }
         XCTAssertTrue(kingsCross.waitForExistence(timeout: 15))
         attachScreenshot(of: app, named: "Nearby stations")
         kingsCross.tap()

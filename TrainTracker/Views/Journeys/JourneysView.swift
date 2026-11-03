@@ -27,15 +27,15 @@ struct JourneysView: View {
                     }
                     if !sections.live.isEmpty {
                         sectionTitle("Live", liveDot: true)
-                        groups(sections.live)
+                        groups(sections.live, now: timeline.date)
                     }
                     if !sections.upcoming.isEmpty {
                         sectionTitle("Upcoming")
-                        groups(sections.upcoming)
+                        groups(sections.upcoming, now: timeline.date)
                     }
                     if !sections.past.isEmpty {
                         sectionTitle("Past")
-                        groups(sections.past)
+                        groups(sections.past, now: timeline.date)
                     }
                 }
                 .listStyle(.plain)
@@ -45,6 +45,11 @@ struct JourneysView: View {
                 .refreshable { await sync.refresh(in: context) }
             }
             .navigationTitle("Journeys")
+            .navigationDestination(for: UUID.self) { id in
+                if let journey = journeys.first(where: { $0.id == id }) {
+                    JourneyDetailView(journey: journey)
+                }
+            }
             .searchable(text: $search, prompt: "Station, headcode or operator")
             .searchToolbarBehavior(.minimize)
             .toolbar {
@@ -101,7 +106,7 @@ struct JourneysView: View {
     }
 
     @ViewBuilder
-    private func groups(_ groups: [JourneyGroup]) -> some View {
+    private func groups(_ groups: [JourneyGroup], now: Date) -> some View {
         ForEach(groups) { group in
             Text(group.label)
                 .font(.headline.weight(.regular))
@@ -111,7 +116,12 @@ struct JourneysView: View {
                 .listRowBackground(Color.clear)
                 .accessibilityAddTraits(.isHeader)
             ForEach(group.journeys) { journey in
-                JourneyCard(journey: journey)
+                JourneyCard(journey: journey, now: now)
+                    // Tapping opens the journey; a hidden link keeps the card free of a disclosure chevron.
+                    .background {
+                        NavigationLink(value: journey.id) { EmptyView() }
+                            .opacity(0)
+                    }
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))

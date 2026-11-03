@@ -1,0 +1,103 @@
+{
+ "state": "departed",
+ "checkedAt": "2026-11-03T10:17:23+00:00",
+ "nextPollSeconds": 30,
+ "stale": false,
+ "message": null,
+ "service": {
+  "rid": "202611036702036",
+  "scheduledDeparture": "2026-11-03T09:33:00+00:00",
+  "expectedDeparture": null,
+  "actualDeparture": "2026-11-03T09:32:00+00:00",
+  "delayMinutes": -1,
+  "platform": null,
+  "isCancelled": false,
+  "cancelReason": null,
+  "delayReason": null
+ },
+ "progress": {
+  "stops": [
+   {
+    "crs": "KGX",
+    "name": "London Kings Cross",
+    "scheduled": "2026-11-03T09:33:00+00:00",
+    "expected": null,
+    "actual": "2026-11-03T09:32:00+00:00",
+    "passed": true,
+    "isCancelled": false,
+    "delayMinutes": -1,
+    "platform": null
+   },
+   {
+    "crs": "SVG",
+    "name": "Stevenage",
+    "scheduled": "2026-11-03T09:55:00+00:00",
+    "expected": null,
+    "actual": "2026-11-03T09:52:00+00:00",
+    "passed": true,
+    "isCancelled": false,
+    "delayMinutes": -3,
+    "platform": {
+     "number": "3",
+     "source": "live",
+     "confirmed": true
+    }
+   },
+   {
+    "crs": "GRA",
+    "name": "Grantham",
+    "scheduled": "2026-11-03T10:37:00+00:00",
+    "expected": "2026-11-03T10:37:00+00:00",
+    "actual": null,
+    "passed": false,
+    "isCancelled": false,
+    "delayMinutes": 0,
+    "platform": {
+     "number": "2",
+     "source": "live",
+     "confirmed": false
+    }
+   },
+   {
+    "crs": "YRK",
+    "name": "York",
+    "scheduled": "2026-11-03T11:27:00+00:00",
+    "expected": "2026-11-03T11:27:00+00:00",
+    "actual": null,
+    "passed": false,
+    "isCancelled": false,
+    "delayMinutes": 0,
+    "platform": {
+     "number": "5",
+     "source": "live",
+     "confirmed": false
+    }
+   }
+  ],
+  "lastPassedIndex": 1,
+  "nextIndex": 2,
+  "arrived": false
+ },
+ "position": {
+  "source": "darwin",
+  "last": {
+   "tiploc": "HOLME",
+   "crs": "XHO",
+   "name": "Holme Jn.",
+   "lat": null,
+   "lon": null,
+   "time": "2026-11-03T10:16:00+00:00",
+   "event": "pass"
+  },
+  "next": {
+   "tiploc": "FLETTON",
+   "crs": null,
+   "name": "Fletton Jn.",
+   "lat": null,
+   "lon": null,
+   "expectedTime": "2026-11-03T10:19:00+00:00"
+  },
+  "legFrom": "SVG",
+  "legTo": "GRA"
+ }
+}
