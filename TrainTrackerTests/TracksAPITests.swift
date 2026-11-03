@@ -8,8 +8,11 @@ import Testing
 /// The server allows 20 registrations an hour per IP, so tests that aren't
 /// about registration share one test device, kept in its own Keychain entry
 /// between runs. Only the two registration tests create (and delete) devices.
+/// The development server on this Mac. Tests never touch the deployed one.
+let localTracksServer = URL(string: "http://localhost:3000")!
+
 func tracksServerIsUp() async -> Bool {
-    let url = URL(string: "http://localhost:3000/health")!
+    let url = localTracksServer.appending(path: "health")
     return (try? await URLSession.shared.data(from: url)).map { ($0.1 as? HTTPURLResponse)?.statusCode == 200 } ?? false
 }
 
@@ -17,12 +20,12 @@ func tracksServerIsUp() async -> Bool {
 @Suite(.enabled("tracks server not running on localhost:3000") { await tracksServerIsUp() })
 struct TracksAPITests {
     /// The shared test device's client (registered once, then reused across runs).
-    private static let shared = TracksClient(session: DeviceSession(service: "com.joshuazacek.TrainTracker.tracks.integration"))
+    private static let shared = TracksClient(session: DeviceSession(service: "com.joshuazacek.TrainTracker.tracks.integration"), baseURL: localTracksServer)
 
     /// A client with a fresh, unregistered identity: for the registration tests only.
     private func makeClient() -> (TracksClient, DeviceSession) {
         let session = DeviceSession(service: "com.joshuazacek.TrainTracker.tracks.test.\(UUID().uuidString)")
-        return (TracksClient(session: session), session)
+        return (TracksClient(session: session, baseURL: localTracksServer), session)
     }
 
     @Test func registersOnFirstUseAndKeepsTheToken() async throws {

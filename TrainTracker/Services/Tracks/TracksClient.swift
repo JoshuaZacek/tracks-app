@@ -6,8 +6,9 @@ import OSLog
 /// it has none; a 401 (the device was deleted on the server, or its token is
 /// no longer valid) registers again once and retries.
 ///
-/// The base URL defaults to the server on this Mac, which the iOS Simulator
-/// reaches as localhost. Override it with the `tracksBaseURL` user default,
+/// The base URL comes from the TRACKS_BASE_URL build setting (Info.plist
+/// `TracksBaseURL`): the deployed server, https://tracks-api.joshuazacek.com.
+/// Tests pass the development server on this Mac (http://localhost:3000). Override it with the `tracksBaseURL` user default,
 /// e.g. the launch argument `-tracksBaseURL http://192.168.1.20:3000`.
 final class TracksClient {
     static let shared = TracksClient()
@@ -17,16 +18,25 @@ final class TracksClient {
 
     let session: DeviceSession
     private let urlSession: URLSession
+    /// Set by tests; otherwise from the `tracksBaseURL` default or the build.
+    private let fixedBaseURL: URL?
     /// One registration at a time, even if several requests need a token at once.
     private var registering: Task<DeviceSession.Credentials, Error>?
 
-    init(session: DeviceSession = .shared, urlSession: URLSession = .shared) {
+    init(session: DeviceSession = .shared, urlSession: URLSession = .shared, baseURL: URL? = nil) {
         self.session = session
         self.urlSession = urlSession
+        self.fixedBaseURL = baseURL
     }
 
     var baseURL: URL {
+        if let fixedBaseURL { return fixedBaseURL }
         if let custom = UserDefaults.standard.string(forKey: "tracksBaseURL"), let url = URL(string: custom) {
+            return url
+        }
+        // Per build: the Mac itself from the Simulator, the Mac on the local network from a phone.
+        if let configured = Bundle.main.object(forInfoDictionaryKey: "TracksBaseURL") as? String,
+           !configured.isEmpty, let url = URL(string: configured) {
             return url
         }
         return URL(string: "http://localhost:3000")!

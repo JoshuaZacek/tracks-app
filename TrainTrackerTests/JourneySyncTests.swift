@@ -11,7 +11,7 @@ import Testing
 @Suite(.enabled("tracks server not running on localhost:3000") { await tracksServerIsUp() })
 struct JourneySyncTests {
     private func makeClient() -> TracksClient {
-        TracksClient(session: DeviceSession(service: "com.joshuazacek.TrainTracker.tracks.test.\(UUID().uuidString)"))
+        TracksClient(session: DeviceSession(service: "com.joshuazacek.TrainTracker.tracks.test.\(UUID().uuidString)"), baseURL: localTracksServer)
     }
 
     private func makeContext() throws -> ModelContext {
@@ -113,6 +113,33 @@ struct JourneySyncTests {
         #expect(uploaded.trainUid == d.trainUid && uploaded.runDate == d.runDate)
         #expect(uploaded.live?.state == .scheduled)
         #expect(try await client.journeys(.upcoming).journeys.map(\.id) == [uploaded.id])
+        try await client.deleteDevice()
+    }
+
+    /// The server no longer knows the device (its data was reset, or it's a new
+    /// server): the app registers again and saves its journeys there.
+    @Test func journeysMoveToANewRegistration() async throws {
+        let session = DeviceSession(service: "com.joshuazacek.TrainTracker.tracks.test.\(UUID().uuidString)")
+        let client = TracksClient(session: session, baseURL: localTracksServer)
+        let context = try makeContext()
+        let sync = JourneySync(client: client, context: { context })
+        let d = try await tomorrowsTrain(client)
+        let saved = try await sync.save(trainUid: d.trainUid, runDate: d.runDate, fromCrs: "KGX", toCrs: "YRK", in: context)
+
+        // Wipe the device on the server but keep its now-meaningless token here.
+        let old = try #require(session.credentials)
+        try await client.deleteDevice()
+        session.credentials = old
+
+        await sync.refresh(in: context)
+        #expect(sync.lastError == nil)
+        #expect(session.credentials?.deviceId != old.deviceId)
+        let cached = try context.fetch(FetchDescriptor<Journey>())
+        #expect(cached.count == 1)
+        let moved = try #require(cached.first)
+        #expect(moved.syncedAt != nil)
+        #expect(moved.trainUid == saved.trainUid && moved.runDate == saved.runDate && moved.from.crs == "KGX" && moved.to.crs == "YRK")
+        #expect(try await client.journeys(.upcoming).journeys.map(\.id) == [moved.id])
         try await client.deleteDevice()
     }
 

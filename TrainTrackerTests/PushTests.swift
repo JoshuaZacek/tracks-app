@@ -129,7 +129,7 @@ struct PushPayloadTests {
 @Suite(.enabled("tracks server not running on localhost:3000") { await tracksServerIsUp() })
 struct PushEndpointTests {
     private func makeClient() -> TracksClient {
-        TracksClient(session: DeviceSession(service: "com.joshuazacek.TrainTracker.tracks.test.\(UUID().uuidString)"))
+        TracksClient(session: DeviceSession(service: "com.joshuazacek.TrainTracker.tracks.test.\(UUID().uuidString)"), baseURL: localTracksServer)
     }
 
     /// A made-up but well-formed APNs token (32 bytes).

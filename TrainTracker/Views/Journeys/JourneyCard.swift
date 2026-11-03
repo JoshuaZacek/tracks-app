@@ -191,6 +191,7 @@ struct RouteLine: View {
     }
 }
 
+#if DEBUG // preview data is Debug-only
 #Preview(traits: .sizeThatFitsLayout) {
     VStack(spacing: 12) {
         JourneyCard(journey: .preview(from: ("YRK", "York"), to: ("KGX", "London King's Cross"), departs: "08:30", platform: "3"))
@@ -199,3 +200,4 @@ struct RouteLine: View {
     .padding()
     .background(Color(.systemGroupedBackground))
 }
+#endif

@@ -18,7 +18,7 @@ final class TrainTrackerUITests: XCTestCase {
     @MainActor
     func testAddJourneyFromTheTimetable() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-uiTesting"]
+        app.launchArguments = Self.localServer + ["-uiTesting"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["No journeys yet"].waitForExistence(timeout: 15)) // first launch after install is slow
@@ -60,7 +60,7 @@ final class TrainTrackerUITests: XCTestCase {
     @MainActor
     func testSeededJourneysShowAllSections() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-uiTesting", "-seedJourneys"]
+        app.launchArguments = Self.localServer + ["-uiTesting", "-seedJourneys"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Upcoming"].waitForExistence(timeout: 30))
@@ -80,7 +80,7 @@ final class TrainTrackerUITests: XCTestCase {
     @MainActor
     func testLiveJourneyOpensWithTheTrainOnTheMap() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-uiTesting", "-seedJourneys"]
+        app.launchArguments = Self.localServer + ["-uiTesting", "-seedJourneys"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Live"].waitForExistence(timeout: 30), "no trains running right now?")
@@ -100,7 +100,7 @@ final class TrainTrackerUITests: XCTestCase {
     func testNearbyStationsListedWithoutSearching() throws {
         XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 51.5320, longitude: -0.1233))
         let app = XCUIApplication()
-        app.launchArguments = ["-uiTesting"]
+        app.launchArguments = Self.localServer + ["-uiTesting"]
         app.launch()
 
         app.buttons["Add journey"].firstMatch.tap()
@@ -124,7 +124,7 @@ final class TrainTrackerUITests: XCTestCase {
     @MainActor
     func testAlertOpensItsJourney() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-uiTesting", "-seedJourneys", "-allowNotificationPrompt", "-debugAlert"]
+        app.launchArguments = Self.localServer + ["-uiTesting", "-seedJourneys", "-allowNotificationPrompt", "-debugAlert"]
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "journeyCard").firstMatch.waitForExistence(timeout: 30))
 
@@ -153,7 +153,7 @@ final class TrainTrackerUITests: XCTestCase {
     @MainActor
     func testStartingALiveActivity() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-uiTesting", "-seedJourneys"]
+        app.launchArguments = Self.localServer + ["-uiTesting", "-seedJourneys"]
         app.launch()
         XCTAssertTrue(app.staticTexts["Live"].waitForExistence(timeout: 30), "no trains running right now?")
         app.descendants(matching: .any).matching(identifier: "journeyCard").firstMatch.tap()
@@ -168,6 +168,10 @@ final class TrainTrackerUITests: XCTestCase {
         attachScreenshot(of: app, named: "Live Activity started")
         app.buttons["Done"].tap()
     }
+
+    /// UI tests use the development server on this Mac (`npm run dev` in
+    /// ~/Desktop/tracks-server), never the deployed one.
+    private static let localServer = ["-tracksBaseURL", "http://localhost:3000"]
 
     private func attachScreenshot(of app: XCUIApplication, named name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())

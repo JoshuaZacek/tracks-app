@@ -201,6 +201,7 @@ struct JourneysView: View {
     }
 }
 
+#if DEBUG // preview data is Debug-only
 #Preview {
     let container = try! ModelContainer(for: Journey.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let today = RailTime.ymd(.now)
@@ -216,3 +217,4 @@ struct JourneysView: View {
     }
     return JourneysView().modelContainer(container)
 }
+#endif

@@ -9,9 +9,11 @@ import SwiftData
 /// journeys moved to the server, and retries deletes made while offline.
 @Observable
 final class JourneySync {
-    static let shared = JourneySync()
+    static let shared = JourneySync(context: { JourneyStore.context })
 
     private let client: TracksClient
+    /// The cache this sync keeps (for work not started from a view, e.g. registering again).
+    private let context: () -> ModelContext?
     private(set) var isRefreshing = false
     /// Set when the last refresh couldn't reach the server (the list shows the cache).
     private(set) var lastError: String?
@@ -21,8 +23,29 @@ final class JourneySync {
 
     private let pendingDeletesKey = "pendingJourneyDeletes"
 
-    init(client: TracksClient = .shared) {
+    init(client: TracksClient = .shared, context: @escaping () -> ModelContext? = { nil }) {
         self.client = client
+        self.context = context
+        // A new registration means a server that doesn't know this install's
+        // journeys (its data was reset, or it's a different server): save them
+        // there again rather than dropping them. Synchronous (no queue), so it
+        // happens before the request that hit the 401 is retried.
+        NotificationCenter.default.addObserver(forName: TracksClient.didRegister, object: client, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reuploadAfterRegistering() }
+        }
+    }
+
+    private func reuploadAfterRegistering() {
+        guard let context = context() else { return }
+        let journeys = (try? context.fetch(FetchDescriptor<Journey>())) ?? []
+        guard !journeys.isEmpty else { return }
+        for journey in journeys where journey.syncedAt != nil {
+            journey.syncedAt = nil
+        }
+        try? context.save()
+        pendingDeletes = [] // those IDs belonged to the old registration
+        Logger.tracks.info("Registered again: \(journeys.count) journeys to save on the server")
+        Task { await refresh(in: context) }
     }
 
     // MARK: - Changes
@@ -73,7 +96,8 @@ final class JourneySync {
 
     /// Refresh soon, e.g. an alert just arrived.
     func requestRefresh() {
-        Task { await refresh(in: JourneyStore.context) }
+        guard let context = context() else { return }
+        Task { await refresh(in: context) }
     }
 
     /// Forgets every journey here (the user deleted their data on the server).
@@ -105,6 +129,8 @@ final class JourneySync {
             let upcoming = try await client.journeys(.upcoming)
             let past = try await client.journeys(.past)
             try await merge(upcoming.journeys + past.journeys, in: context)
+            // Anything marked for upload meanwhile (the device registered again mid-refresh).
+            try await uploadLocalJourneys(in: context)
             nextRefresh = upcoming.nextPollSeconds.map { Date.now.addingTimeInterval(TimeInterval($0)) }
             lastError = nil
         } catch {
