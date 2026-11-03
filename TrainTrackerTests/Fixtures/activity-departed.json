@@ -1,0 +1,26 @@
+{
+    "aps": {
+        "event": "update",
+        "timestamp": 1793702664,
+        "stale-date": 1793707560,
+        "content-state": {
+            "state": "departed",
+            "message": null,
+            "platform": {
+                "number": "2",
+                "confirmed": false
+            },
+            "isCancelled": false,
+            "delayMinutes": 0,
+            "nextStopName": "Grantham",
+            "actualArrival": null,
+            "legDepartedAt": "2026-11-03T10:43:00+00:00",
+            "nextExpectedAt": "2026-11-03T11:46:00+00:00",
+            "actualDeparture": "2026-11-03T10:43:00+00:00",
+            "expectedArrival": "2026-11-03T11:46:00+00:00",
+            "scheduledArrival": "2026-11-03T11:46:00+00:00",
+            "expectedDeparture": null,
+            "scheduledDeparture": "2026-11-03T10:44:00+00:00"
+        }
+    }
+}

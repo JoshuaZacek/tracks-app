@@ -10,12 +10,17 @@ import SwiftUI
 
 @main
 struct TrainTrackerApp: App {
+    @UIApplicationDelegateAdaptor private var appDelegate: AppDelegate
+
     var body: some Scene {
         WindowGroup {
             JourneysView()
                 // Register this install with the tracks server (once) and keep its details current.
                 .task {
+                    // Watch Live Activities (push-to-start and push tokens) from the start.
+                    LiveActivities.shared.start()
                     await TracksClient.shared.prepareDevice()
+                    await PushNotifications.shared.prepare()
                     // Fetch (or revalidate) place names now so nearest-town labels work offline later.
                     _ = await PlacesStore.shared.placeIndex()
                 }

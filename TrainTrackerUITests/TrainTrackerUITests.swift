@@ -21,7 +21,7 @@ final class TrainTrackerUITests: XCTestCase {
         app.launchArguments = ["-uiTesting"]
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["No journeys yet"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No journeys yet"].waitForExistence(timeout: 15)) // first launch after install is slow
         app.buttons["Add journey"].firstMatch.tap()
 
         // Choose York, by typing its name.
@@ -119,6 +119,56 @@ final class TrainTrackerUITests: XCTestCase {
     }
 
     /// Kept in the test results (Xcode's Report navigator), pass or fail.
+    /// Turns notifications on from Settings (accepting the system prompt), then
+    /// taps an alert shaped like the server's and expects its journey to open.
+    @MainActor
+    func testAlertOpensItsJourney() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTesting", "-seedJourneys", "-allowNotificationPrompt", "-debugAlert"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "journeyCard").firstMatch.waitForExistence(timeout: 30))
+
+        app.buttons["settings"].tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let enable = app.buttons["enableNotifications"]
+        if enable.waitForExistence(timeout: 5) {
+            enable.tap()
+            let allow = springboard.buttons["Allow"]
+            if allow.waitForExistence(timeout: 5) { allow.tap() }
+        }
+        XCTAssertTrue(app.switches["Delays"].waitForExistence(timeout: 10))
+        sleep(1)
+        attachScreenshot(of: app, named: "Settings")
+        app.buttons["Done"].tap()
+
+        XCUIDevice.shared.press(.home)
+        let banner = springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Test alert'")).firstMatch
+        XCTAssertTrue(banner.waitForExistence(timeout: 30), "no alert shown")
+        banner.tap()
+        XCTAssertTrue(app.buttons["journeyAlerts"].waitForExistence(timeout: 15), "the journey didn't open")
+        attachScreenshot(of: app, named: "Opened from an alert")
+    }
+
+    /// Starts a Live Activity from a running journey's alerts sheet.
+    @MainActor
+    func testStartingALiveActivity() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTesting", "-seedJourneys"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Live"].waitForExistence(timeout: 30), "no trains running right now?")
+        app.descendants(matching: .any).matching(identifier: "journeyCard").firstMatch.tap()
+
+        app.buttons["journeyAlerts"].tap()
+        let start = app.buttons["startLiveActivity"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        attachScreenshot(of: app, named: "Journey alerts")
+        start.tap()
+        XCTAssertTrue(app.buttons["End Live Activity"].waitForExistence(timeout: 10))
+        sleep(15) // let the push token reach the server
+        attachScreenshot(of: app, named: "Live Activity started")
+        app.buttons["Done"].tap()
+    }
+
     private func attachScreenshot(of app: XCUIApplication, named name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name

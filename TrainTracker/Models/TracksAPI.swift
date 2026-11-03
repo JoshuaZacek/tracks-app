@@ -19,13 +19,37 @@ nonisolated enum ApnsEnvironment: String, Codable, Sendable {
     case sandbox, production
 }
 
+/// A value to send in a PATCH where JSON `null` means "clear it": `.value(x)`
+/// sets it, `.null` clears it, and leaving the Optional field nil omits it.
+nonisolated enum Nullable<Wrapped: Encodable & Sendable>: Encodable, Sendable {
+    case value(Wrapped)
+    case null
+
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .value(let v): try c.encode(v)
+        case .null: try c.encodeNil()
+        }
+    }
+}
+
+/// The device's alert settings (defaults for every journey).
 nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
     var delays: Bool
     var platforms: Bool
     var cancellations: Bool
     var departure: Bool
     var arrival: Bool
+    /// 1...60.
     var delayThresholdMinutes: Int
+    /// Start a Live Activity by push 30 min before departure.
+    var liveActivity: Bool
+
+    static let thresholdRange = 1...60
+
+    /// The server's defaults, for display before the device has been fetched.
+    static let defaults = NotificationPrefs(delays: true, platforms: true, cancellations: true, departure: true, arrival: true, delayThresholdMinutes: 5, liveActivity: true)
 }
 
 nonisolated struct Device: Decodable, Sendable {
@@ -43,7 +67,14 @@ nonisolated struct Device: Decodable, Sendable {
 nonisolated struct UpdateDeviceRequest: Encodable, Sendable {
     var appVersion: String?
     var locale: String?
+    /// The host for all of this device's tokens: sandbox for debug builds.
     var apnsEnvironment: ApnsEnvironment?
+    /// Hex; `.null` clears it.
+    var apnsToken: Nullable<String>?
+    /// Live Activity push-to-start token, hex; `.null` clears it.
+    var pushToStartToken: Nullable<String>?
+    /// Only the prefs set are changed (the server merges them).
+    var prefs: NotificationPrefs?
 }
 
 nonisolated struct ServerStatus: Decodable, Sendable {
@@ -57,10 +88,18 @@ nonisolated struct ServerStatus: Decodable, Sendable {
         var healthy: Bool
     }
 
+    struct Push: Decodable, Sendable {
+        /// False until the server has an APNs key; alerts are then only logged.
+        var enabled: Bool
+        var sentLastHour: Int
+        var failedLastHour: Int
+    }
+
     var version: String
     var serverTime: Date
     var schedule: Schedule
     var worker: Worker
+    var push: Push?
 }
 
 /// The server's error body: `{ "error": { "code", "message", "details"? } }`.
@@ -249,6 +288,7 @@ nonisolated struct LiveSummary: Codable, Hashable, Sendable {
 // MARK: - Journeys (Phase 3)
 
 /// Per-journey notification overrides; unset fields follow the device's prefs.
+/// A journey's own alert settings; nil fields follow the device's.
 nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
     var delays: Bool?
     var platforms: Bool?
@@ -256,6 +296,48 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
     var departure: Bool?
     var arrival: Bool?
     var delayThresholdMinutes: Int?
+    var liveActivity: Bool?
+
+    /// What applies to the journey: its own setting where it has one, else the device's.
+    func applied(over device: NotificationPrefs) -> NotificationPrefs {
+        NotificationPrefs(
+            delays: delays ?? device.delays,
+            platforms: platforms ?? device.platforms,
+            cancellations: cancellations ?? device.cancellations,
+            departure: departure ?? device.departure,
+            arrival: arrival ?? device.arrival,
+            delayThresholdMinutes: delayThresholdMinutes ?? device.delayThresholdMinutes,
+            liveActivity: liveActivity ?? device.liveActivity
+        )
+    }
+
+    /// Every field, with JSON null for the ones following the device, so the
+    /// server ends up with exactly these overrides.
+    var replacingAll: JourneyPrefsUpdate {
+        func n<T>(_ v: T?) -> Nullable<T>? { v.map { .value($0) } ?? .null }
+        return JourneyPrefsUpdate(
+            delays: n(delays), platforms: n(platforms), cancellations: n(cancellations),
+            departure: n(departure), arrival: n(arrival),
+            delayThresholdMinutes: n(delayThresholdMinutes), liveActivity: n(liveActivity)
+        )
+    }
+}
+
+/// PATCH a journey's prefs: `.value` overrides, `.null` goes back to the device's, nil leaves it.
+nonisolated struct JourneyPrefsUpdate: Encodable, Sendable {
+    var delays: Nullable<Bool>?
+    var platforms: Nullable<Bool>?
+    var cancellations: Nullable<Bool>?
+    var departure: Nullable<Bool>?
+    var arrival: Nullable<Bool>?
+    var delayThresholdMinutes: Nullable<Int>?
+    var liveActivity: Nullable<Bool>?
+}
+
+/// PUT /v1/journeys/{id}/live-activity.
+nonisolated struct RegisterLiveActivityRequest: Encodable, Sendable {
+    /// The activity's push token, hex.
+    var pushToken: String
 }
 
 nonisolated struct CreateJourneyRequest: Encodable, Sendable {
@@ -269,6 +351,7 @@ nonisolated struct CreateJourneyRequest: Encodable, Sendable {
 /// PATCH /v1/journeys/{id}. (Per-journey notification prefs come with push, in Phase 5.)
 nonisolated struct UpdateJourneyRequest: Encodable, Sendable {
     var archived: Bool?
+    var prefs: JourneyPrefsUpdate?
 }
 
 /// A saved journey as the server stores it, with its calling pattern snapshot and live status.

@@ -34,6 +34,8 @@ final class Journey {
     var archivedAt: Date?
     /// The server's live summary (state, delay, platform) from the last refresh.
     var live: LiveSummary?
+    /// This journey's own alert settings (nil fields follow the device's).
+    var prefs: JourneyPrefs?
 
     init(id: UUID = UUID(), savedAt: Date = .now, date: String, train: TrainDetails, fromIndex: Int, toIndex: Int) {
         self.id = id
@@ -66,6 +68,7 @@ final class Journey {
         self.syncedAt = syncedAt
         self.archivedAt = server.archivedAt
         self.live = LiveSummary(server.live)
+        self.prefs = server.prefs
     }
 
     /// Takes the latest state from the journey list.
@@ -73,6 +76,7 @@ final class Journey {
         departsAt = item.scheduledDeparture
         archivedAt = item.archivedAt
         live = item.live
+        prefs = item.prefs
         self.syncedAt = syncedAt
     }
 

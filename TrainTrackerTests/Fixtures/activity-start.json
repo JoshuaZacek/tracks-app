@@ -1,0 +1,40 @@
+{
+    "aps": {
+        "alert": {
+            "body": "Leaves at 11:10, platform 7.",
+            "title": "11:10 London Kings Cross to Peterborough"
+        },
+        "event": "start",
+        "timestamp": 1793702405,
+        "attributes": {
+            "toCrs": "PBO",
+            "toName": "Peterborough",
+            "fromCrs": "KGX",
+            "fromName": "London Kings Cross",
+            "headcode": "1D12",
+            "journeyId": "af28be9d-180a-42b3-92ca-5825a3cb6428",
+            "operatorName": "LNER"
+        },
+        "stale-date": 1793705400,
+        "content-state": {
+            "state": "live",
+            "message": null,
+            "platform": {
+                "number": "7",
+                "confirmed": false
+            },
+            "isCancelled": false,
+            "delayMinutes": 0,
+            "nextStopName": null,
+            "actualArrival": null,
+            "legDepartedAt": null,
+            "nextExpectedAt": null,
+            "actualDeparture": null,
+            "expectedArrival": "2026-11-03T11:55:00+00:00",
+            "scheduledArrival": "2026-11-03T11:55:00+00:00",
+            "expectedDeparture": "2026-11-03T11:10:00+00:00",
+            "scheduledDeparture": "2026-11-03T11:10:00+00:00"
+        },
+        "attributes-type": "TrainActivityAttributes"
+    }
+}

@@ -158,6 +158,8 @@ struct AddJourneyView: View {
         do {
             try await JourneySync.shared.save(trainUid: d.trainUid, runDate: d.runDate, fromCrs: from.crs, toCrs: to?.crs, in: context)
             dismiss()
+            // Now there's a train to be alerted about: ask (once) to allow notifications.
+            Task { await PushNotifications.shared.requestAuthorization() }
         } catch {
             self.error = error.localizedDescription
         }

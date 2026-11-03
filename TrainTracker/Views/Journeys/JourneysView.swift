@@ -1,3 +1,4 @@
+import OSLog
 import SwiftData
 import SwiftUI
 
@@ -8,11 +9,14 @@ struct JourneysView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var search = ""
     @State private var addingJourney = false
+    @State private var showingSettings = false
     @State private var actionError: String?
+    @State private var path: [UUID] = []
     private let sync = JourneySync.shared
+    private let push = PushNotifications.shared
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             // Re-sorted into sections every minute as journeys start and finish.
             TimelineView(.everyMinute) { timeline in
                 let filtered = journeys.filter { JourneyFilter.matches($0, query: search) }
@@ -53,6 +57,10 @@ struct JourneysView: View {
             .searchable(text: $search, prompt: "Station, headcode or operator")
             .searchToolbarBehavior(.minimize)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Settings", systemImage: "gearshape") { showingSettings = true }
+                        .accessibilityIdentifier("settings")
+                }
                 ToolbarItem(placement: .bottomBar) {
                     Button("Add journey", systemImage: "plus") { addingJourney = true }
                         .buttonStyle(.glassProminent)
@@ -62,6 +70,17 @@ struct JourneysView: View {
             }
             .sheet(isPresented: $addingJourney) {
                 AddJourneyView()
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
+            // A tapped alert opens its journey (once the list has it).
+            .onChange(of: push.journeyToOpen, initial: true) { _, id in openTappedJourney(id) }
+            .onChange(of: journeys.count) { openTappedJourney(push.journeyToOpen) }
+            // Tapping a Live Activity: traintracker://journey/<id>.
+            .onOpenURL { url in
+                guard url.scheme == "traintracker", url.host() == "journey", let id = UUID(uuidString: url.lastPathComponent) else { return }
+                push.journeyToOpen = id
             }
             .alert("Couldn't update the journey", isPresented: .constant(actionError != nil)) {
                 Button("OK") { actionError = nil }
@@ -81,6 +100,20 @@ struct JourneysView: View {
                 await sync.refresh(in: context)
             }
         }
+    }
+
+    private func openTappedJourney(_ id: UUID?) {
+        guard let id else { return }
+        Logger.tracks.info("Opening journey \(id) from an alert")
+        guard journeys.contains(where: { $0.id == id }) else {
+            // Not cached yet (e.g. saved on the server since the last refresh).
+            Task { await sync.refresh(in: context) }
+            return
+        }
+        push.journeyToOpen = nil
+        addingJourney = false
+        showingSettings = false
+        path = [id]
     }
 
     private func offlineNote(_ message: String) -> some View {

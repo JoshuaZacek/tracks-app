@@ -12,6 +12,9 @@ import OSLog
 final class TracksClient {
     static let shared = TracksClient()
 
+    /// Posted after the install registers (again): push tokens need sending to the new device.
+    static let didRegister = Notification.Name("TracksClientDidRegister")
+
     let session: DeviceSession
     private let urlSession: URLSession
     /// One registration at a time, even if several requests need a token at once.
@@ -128,6 +131,17 @@ final class TracksClient {
         let _: Empty = try await request("DELETE", "/v1/journeys/\(id.uuidString.lowercased())")
     }
 
+    /// Starts (or resumes) server pushes to a Live Activity for this journey,
+    /// whoever started it. Send again whenever the token rotates.
+    func registerLiveActivity(journeyID id: UUID, pushToken: String) async throws {
+        let _: Empty = try await request("PUT", "/v1/journeys/\(id.uuidString.lowercased())/live-activity", body: RegisterLiveActivityRequest(pushToken: pushToken))
+    }
+
+    /// The user dismissed the activity: stop pushing, and don't push-to-start this journey again.
+    func endLiveActivity(journeyID id: UUID) async throws {
+        let _: Empty = try await request("DELETE", "/v1/journeys/\(id.uuidString.lowercased())/live-activity")
+    }
+
     func liveStatus(journeyID id: UUID) async throws -> LiveStatus {
         try await request("GET", "/v1/journeys/\(id.uuidString.lowercased())/live")
     }
@@ -169,6 +183,8 @@ final class TracksClient {
         let credentials = try await task.value
         session.credentials = credentials
         Logger.tracks.info("Registered device \(credentials.deviceId)")
+        // A new device on the server knows none of this install's push tokens yet.
+        NotificationCenter.default.post(name: Self.didRegister, object: self)
         return credentials
     }
 

@@ -1,0 +1,13 @@
+{
+    "aps": {
+        "alert": {
+            "body": "Departs from platform 7.",
+            "title": "11:10 London Kings Cross to Peterborough"
+        },
+        "sound": "default",
+        "thread-id": "af28be9d-180a-42b3-92ca-5825a3cb6428",
+        "interruption-level": "active"
+    },
+    "kind": "platform",
+    "journeyId": "af28be9d-180a-42b3-92ca-5825a3cb6428"
+}

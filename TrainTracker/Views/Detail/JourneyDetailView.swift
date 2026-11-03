@@ -5,6 +5,7 @@ import SwiftUI
 /// journey card, and every stop with live times and where the train is now.
 struct JourneyDetailView: View {
     @State private var model: JourneyDetailModel
+    @State private var showingAlerts = false
 
     init(journey: Journey) {
         _model = State(initialValue: JourneyDetailModel(journey: journey))
@@ -41,6 +42,18 @@ struct JourneyDetailView: View {
         }
         .navigationTitle("\(journey.from.crs) → \(journey.to.crs)")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Alerts", systemImage: LiveActivities.shared.isRunning(for: journey.id) ? "bell.badge.fill" : "bell") {
+                    showingAlerts = true
+                }
+                .accessibilityIdentifier("journeyAlerts")
+            }
+        }
+        .sheet(isPresented: $showingAlerts) {
+            JourneyAlertsView(journey: journey)
+                .presentationDetents([.medium, .large])
+        }
         .refreshable { await model.refresh() }
         .task { await model.run() }
     }

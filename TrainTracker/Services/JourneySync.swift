@@ -40,6 +40,7 @@ final class JourneySync {
         let wasOnServer = journey.syncedAt != nil
         context.delete(journey)
         try? context.save()
+        await LiveActivities.shared.end(journeyID: id)
         guard wasOnServer else { return }
         do {
             try await client.deleteJourney(id: id)
@@ -57,6 +58,31 @@ final class JourneySync {
         journey.live = LiveSummary(server.live)
         journey.syncedAt = .now
         try? context.save()
+        // Archived journeys don't update, so their activity would only go stale.
+        if archived { await LiveActivities.shared.end(journeyID: journey.id) }
+    }
+
+    /// Sets the journey's own alert settings (nil fields follow the device's).
+    func setPrefs(_ prefs: JourneyPrefs, for journey: Journey, in context: ModelContext) async throws {
+        let server = try await client.updateJourney(id: journey.id, UpdateJourneyRequest(prefs: prefs.replacingAll))
+        journey.prefs = server.prefs
+        journey.live = LiveSummary(server.live)
+        journey.syncedAt = .now
+        try? context.save()
+    }
+
+    /// Refresh soon, e.g. an alert just arrived.
+    func requestRefresh() {
+        Task { await refresh(in: JourneyStore.context) }
+    }
+
+    /// Forgets every journey here (the user deleted their data on the server).
+    func removeAll(in context: ModelContext) {
+        try? context.delete(model: Journey.self)
+        try? context.save()
+        pendingDeletes = []
+        nextRefresh = nil
+        lastError = nil
     }
 
     // MARK: - Refresh

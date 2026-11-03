@@ -1,6 +1,8 @@
 #if DEBUG
 import Foundation
 import SwiftData
+import UIKit
+import UserNotifications
 
 /// Launch with `-seedJourneys` to replace this install's journeys (on the server
 /// too) with real trains, laid out like the Journeys mockup: one under way, one leaving
@@ -55,6 +57,31 @@ enum DebugSeed {
             }
         }
         try? context.save()
+        if ProcessInfo.processInfo.arguments.contains("-debugAlert") { await scheduleAlert(in: context) }
+    }
+
+    /// `-debugAlert`: an alert shaped like the server's (journeyId key, thread
+    /// per journey) about the first live journey, once the app is in the background, so UI tests
+    /// can tap it and check it opens the journey.
+    private static func scheduleAlert(in context: ModelContext) async {
+        let journeys = (try? context.fetch(FetchDescriptor<Journey>(sortBy: [SortDescriptor(\.departsAt)]))) ?? []
+        guard let journey = journeys.first(where: { $0.live?.state == .departed }) ?? journeys.first else { return }
+        // Wait for the test to allow notifications; anything added before then is dropped.
+        for _ in 0..<90 {
+            if await UNUserNotificationCenter.current().notificationSettings().authorizationStatus == .authorized { break }
+            try? await Task.sleep(for: .seconds(1))
+        }
+        // Then for the app to be in the background, as when a real alert arrives.
+        for _ in 0..<90 where UIApplication.shared.applicationState != .background {
+            try? await Task.sleep(for: .seconds(1))
+        }
+        let content = UNMutableNotificationContent()
+        content.title = "\(RailTime.hhmm(journey.departsAt)) \(journey.from.name) to \(journey.to.name)"
+        content.body = "Test alert: platform change."
+        content.threadIdentifier = journey.id.uuidString.lowercased()
+        content.userInfo = ["journeyId": journey.id.uuidString.lowercased(), "kind": "platform"]
+        let request = UNNotificationRequest(identifier: "debugAlert", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false))
+        try? await UNUserNotificationCenter.current().add(request)
     }
 }
 #endif
