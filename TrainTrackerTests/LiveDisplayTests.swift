@@ -116,6 +116,23 @@ struct LiveDisplayTests {
         #expect(late == 0.97)
     }
 
+    /// Darwin missed the departure from my station (a gap in the feed) but has
+    /// the train at later stops: the stop list still shows it as passed.
+    @Test func stopsBeforeAReportedOneCountAsPassed() throws {
+        let server = try fixture("journey", as: ServerJourney.self)
+        var cps = try fixture("train-live", as: TrainDetails.self).callingPoints
+        let j = Journey(server)
+        cps[j.fromIndex].live = nil // nothing received for the boarding station
+        let rows = StopRow.rows(for: j, liveCallingPoints: cps, now: .now)
+        // Row ids are calling point indexes.
+        let reported = try #require(rows.lastIndex { row in cps[row.id].live?.actualDeparture != nil })
+        let passed = rows.map { row in row.passed }
+        #expect(reported > 0)
+        #expect(passed[0])
+        #expect(!passed[...reported].contains(false))
+        #expect(passed.last == false)
+    }
+
     @Test func pathRunsThroughPassedStations() throws {
         let journey = try fixture("journey", as: ServerJourney.self)
         let geometry = RouteGeometry(callingPoints: journey.callingPoints, route: journey.route)

@@ -20,7 +20,7 @@ struct StopRow: Identifiable, Equatable {
         let from = journey.fromIndex
         let to = journey.toIndex
         guard cps.indices.contains(from), cps.indices.contains(to), from <= to else { return [] }
-        return (from...to).map { i in
+        var rows = (from...to).map { i in
             let cp = cps[i]
             let live = cp.live
             // Boarding: departure; destination: arrival; others: arrival if known, else departure.
@@ -43,6 +43,12 @@ struct StopRow: Identifiable, Equatable {
                 isEnd: i == from || i == to
             )
         }
+        // A stop with no report of its own (e.g. it fell in a gap in the live feed)
+        // has still been passed if the train has been reported at a later one.
+        if let last = rows.lastIndex(where: \.passed) {
+            for i in 0..<last { rows[i].passed = true }
+        }
+        return rows
     }
 }
 
