@@ -26,10 +26,8 @@ struct CardRenderTests {
                     // As in the Complete section.
                     JourneyCard(journey: journeys[2], now: now).completeStyle()
                     HStack {
-                        PlatformBadge(number: "3", kind: .booked)
-                        PlatformBadge(number: "3", kind: .live(confirmed: true))
-                        PlatformBadge(number: "2", kind: .notAnnounced(changedFrom: nil))
-                        PlatformBadge(number: "2", kind: .notAnnounced(changedFrom: "3"))
+                        PlatformBadge(number: "3")
+                        PlatformBadge(number: "3", confirmed: true)
                     }
                 }
                 .padding(16)

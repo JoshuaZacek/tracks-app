@@ -13,8 +13,6 @@ struct StopRow: Identifiable, Equatable {
     var cancelled: Bool
     var platform: String?
     var platformConfirmed: Bool
-    /// Known to Darwin, not yet announced at the station.
-    var platformHidden = false
     var isEnd: Bool
 
     /// My stops (boarding to alighting) from the train's calling points, with live data where Darwin has it.
@@ -43,7 +41,6 @@ struct StopRow: Identifiable, Equatable {
                 cancelled: live?.isCancelled ?? false,
                 platform: live?.platform?.number ?? cp.bookedPlatform,
                 platformConfirmed: live?.platform?.confirmed ?? false,
-                platformHidden: live?.platform?.hidden ?? false,
                 isEnd: i == from || i == to
             )
         }
@@ -59,7 +56,8 @@ struct StopRow: Identifiable, Equatable {
 /// The stops down a track line: grey, filled in teal from my station to where
 /// the train is now (by time between the last stop it reached and the next),
 /// with the train on the line and, beside it, where it is ("Near Huntingdon"),
-/// its last report and the next stop.
+/// its last report and the next stop. The stops between my station and the
+/// last one the train reached fold into one row ("5 stations") until expanded.
 struct StopList: View {
     struct Indicator: Equatable {
         var place: String
@@ -71,15 +69,29 @@ struct StopList: View {
     let indicator: Indicator?
     /// 0...1 from the last stop reached to the next, while the train is between them.
     var trainFraction: Double?
+    @State private var expanded: Bool
+
+    init(rows: [StopRow], indicator: Indicator?, trainFraction: Double? = nil, expanded: Bool = false) {
+        self.rows = rows
+        self.indicator = indicator
+        self.trainFraction = trainFraction
+        _expanded = State(initialValue: expanded)
+    }
 
     private static let dot: CGFloat = 15
     private static let lineWidth: CGFloat = 3
 
     var body: some View {
         let lastPassed = rows.lastIndex { $0.passed }
+        let folded = foldable(lastPassed: lastPassed)
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                stop(row)
+                if let folded, index == folded.lowerBound {
+                    foldToggle(count: folded.count)
+                }
+                if expanded || !(folded?.contains(index) ?? false) {
+                    stop(row)
+                }
                 if let indicator, index == lastPassed, index < rows.count - 1 {
                     indicatorRow(indicator)
                 }
@@ -140,6 +152,38 @@ struct StopList: View {
         }
     }
 
+    // MARK: Folding
+
+    /// Row indexes strictly between my station and the last stop reached; nil if there are none.
+    private func foldable(lastPassed: Int?) -> ClosedRange<Int>? {
+        guard let lastPassed, lastPassed >= 2 else { return nil }
+        return 1...(lastPassed - 1)
+    }
+
+    /// "5 stations" while folded, "Hide 5 stations" while expanded; in the same place either way.
+    private func foldToggle(count: Int) -> some View {
+        let stations = count == 1 ? "1 station" : "\(count) stations"
+        return Button {
+            withAnimation(.snappy) { expanded.toggle() }
+        } label: {
+            HStack(spacing: 12) {
+                Color.clear.frame(width: Self.dot, height: 1)
+                Text(expanded ? "Hide \(stations)" : stations)
+                    .font(.subheadline.weight(.medium))
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .rotationEffect(.degrees(expanded ? 180 : 0))
+                Spacer()
+            }
+            .foregroundStyle(.tint)
+            .padding(.vertical, 8)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(expanded ? "Hide \(stations)" : "Show \(stations)")
+        .accessibilityIdentifier("foldedStops")
+    }
+
     // MARK: Rows
 
     private func stop(_ row: StopRow) -> some View {
@@ -158,7 +202,7 @@ struct StopList: View {
                 if row.cancelled {
                     Text("Cancelled").font(.footnote).foregroundStyle(.red)
                 } else if let platform = row.platform {
-                    Text("Platform \(platform)\(row.platformHidden ? " · not yet announced" : row.platformConfirmed ? " · confirmed" : "")")
+                    Text("Platform \(platform)\(row.platformConfirmed ? " · confirmed" : "")")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

@@ -20,7 +20,7 @@ struct JourneyDetailView: View {
             let train = model.status?.position.flatMap { model.geometry.trainCoordinate($0, liveCallingPoints: model.liveCallingPoints, now: now) }
             ScrollView {
                 VStack(spacing: 16) {
-                    JourneyRouteMap(geometry: model.geometry, fromIndex: journey.fromIndex, toIndex: journey.toIndex, train: train, headcode: journey.headcode)
+                    JourneyRouteMap(geometry: model.geometry, fromIndex: journey.fromIndex, toIndex: journey.toIndex, train: train)
                         .frame(height: 300)
                         .clipShape(.rect(cornerRadius: 24, style: .continuous))
                     JourneyCard(journey: journey, now: now)
@@ -112,7 +112,6 @@ struct JourneyRouteMap: View {
     let fromIndex: Int
     let toIndex: Int
     let train: CLLocationCoordinate2D?
-    let headcode: String
     @State private var camera: MapCameraPosition = .automatic
 
     var body: some View {
@@ -134,7 +133,7 @@ struct JourneyRouteMap: View {
                 }
             }
             if let train {
-                Annotation(headcode, coordinate: train, anchor: .center) {
+                Annotation("", coordinate: train, anchor: .center) {
                     TrainMarker()
                 }
             }

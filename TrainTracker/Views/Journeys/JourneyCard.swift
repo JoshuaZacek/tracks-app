@@ -31,7 +31,7 @@ struct JourneyCard: View {
                 if model.platform != nil || model.status != nil {
                     HStack(alignment: .center) {
                         if let platform = model.platform {
-                            PlatformBadge(number: platform, kind: model.platformKind)
+                            PlatformBadge(number: platform, confirmed: model.platformConfirmed)
                         }
                         Spacer(minLength: 8)
                         if let status = model.status {
@@ -59,7 +59,7 @@ struct JourneyCard: View {
     private func accessibilityText(_ model: JourneyCardModel) -> String {
         var parts = ["\(model.time) from \(journey.from.name) to \(journey.to.name)"]
         if model.timeTone == .late { parts.append("running late") }
-        if let platform = model.platform { parts.append("platform \(platform)\(model.platformKind.accessibilityNote)") }
+        if let platform = model.platform { parts.append("platform \(platform)\(PlatformBadge.note(confirmed: model.platformConfirmed))") }
         if let status = model.status { parts.append(status) }
         if let stale = model.staleNote { parts.append(stale) }
         return parts.joined(separator: ", ")
@@ -198,37 +198,16 @@ struct TimeBox: View {
     }
 }
 
-/// "Platform 4" as a small capsule: grey when booked (from the timetable),
-/// teal when Darwin shows it (with a tick once confirmed), amber when it has
-/// changed from the booked one, and outlined with a "not announced" mark when
-/// the station hasn't put it on its boards yet.
+/// "Platform 4" as a small capsule: teal with a tick when Darwin has
+/// confirmed it, grey while it's only predicted (from the timetable, or live
+/// but not yet confirmed).
 struct PlatformBadge: View {
-    nonisolated enum Kind: Equatable, Sendable {
-        case booked
-        case live(confirmed: Bool)
-        case changed(from: String, confirmed: Bool)
-        /// Known to Darwin but not yet announced at the station.
-        case notAnnounced(changedFrom: String?)
-
-        var accessibilityNote: String {
-            switch self {
-            case .booked: ""
-            case .live(let confirmed): confirmed ? ", confirmed" : ""
-            case .changed(let from, let confirmed): ", changed from \(from)\(confirmed ? ", confirmed" : "")"
-            case .notAnnounced(let from): ", not yet announced at the station\(from.map { ", changed from \($0)" } ?? "")"
-            }
-        }
-    }
-
     let number: String
-    var kind: Kind = .booked
+    var confirmed = false
 
     var body: some View {
         HStack(spacing: 4) {
-            if case .notAnnounced = kind {
-                Image(systemName: "eye.slash")
-                    .imageScale(.small)
-            } else if confirmed {
+            if confirmed {
                 Image(systemName: "checkmark.circle.fill")
                     .imageScale(.small)
             }
@@ -237,43 +216,15 @@ struct PlatformBadge: View {
         .lineLimit(1)
         .fixedSize()
         .font(.footnote.weight(.semibold))
-        .foregroundStyle(foreground)
+        .foregroundStyle(confirmed ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
         .padding(.horizontal, 9)
         .padding(.vertical, 4)
-        .background(background, in: .capsule)
-        .overlay {
-            if case .notAnnounced = kind {
-                Capsule().strokeBorder(foreground, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-            }
-        }
+        .background(confirmed ? AnyShapeStyle(.tint.opacity(0.14)) : AnyShapeStyle(Color(.tertiarySystemFill)), in: .capsule)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Platform \(number)\(kind.accessibilityNote)")
+        .accessibilityLabel("Platform \(number)\(Self.note(confirmed: confirmed))")
     }
 
-    private var confirmed: Bool {
-        switch kind {
-        case .booked, .notAnnounced: false
-        case .live(let confirmed), .changed(_, let confirmed): confirmed
-        }
-    }
-
-    private var foreground: AnyShapeStyle {
-        switch kind {
-        case .booked: AnyShapeStyle(.secondary)
-        case .live: AnyShapeStyle(.tint)
-        case .changed: AnyShapeStyle(Color.orange)
-        case .notAnnounced(let from): from == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange)
-        }
-    }
-
-    private var background: AnyShapeStyle {
-        switch kind {
-        case .booked: AnyShapeStyle(Color(.tertiarySystemFill))
-        case .live: AnyShapeStyle(.tint.opacity(0.14))
-        case .changed: AnyShapeStyle(Color.orange.opacity(0.14))
-        case .notAnnounced: AnyShapeStyle(Color.clear)
-        }
-    }
+    static func note(confirmed: Bool) -> String { confirmed ? ", confirmed" : ", predicted" }
 }
 
 /// The line between origin and destination: grey with end dots, filled in teal

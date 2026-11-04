@@ -171,16 +171,13 @@ struct ActivityFooter: View {
     }
 }
 
-/// "Platform 7", with a tick once confirmed, or outlined with a "not
-/// announced" mark while the station keeps it off its boards.
+/// "Platform 7": teal with a tick once confirmed, grey while predicted.
 struct ActivityPlatform: View {
     let platform: TrainActivityAttributes.ContentState.Platform
 
     var body: some View {
         HStack(spacing: 3) {
-            if platform.hidden {
-                Image(systemName: "eye.slash").imageScale(.small)
-            } else if platform.confirmed {
+            if platform.confirmed {
                 Image(systemName: "checkmark.circle.fill").imageScale(.small)
             }
             Text("Platform \(platform.number)")
@@ -189,16 +186,11 @@ struct ActivityPlatform: View {
         .foregroundStyle(tone)
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(platform.hidden ? Color.clear : tone.opacity(0.16), in: .capsule)
-        .overlay {
-            if platform.hidden {
-                Capsule().strokeBorder(tone, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-            }
-        }
-        .accessibilityLabel("Platform \(platform.number)\(platform.hidden ? ", not yet announced" : platform.confirmed ? ", confirmed" : "")")
+        .background(tone.opacity(0.16), in: .capsule)
+        .accessibilityLabel("Platform \(platform.number)\(platform.confirmed ? ", confirmed" : ", predicted")")
     }
 
-    private var tone: Color { platform.confirmed && !platform.hidden ? .trainTeal : .secondary }
+    private var tone: Color { platform.confirmed ? .trainTeal : .secondary }
 }
 
 // MARK: - Dynamic Island pieces

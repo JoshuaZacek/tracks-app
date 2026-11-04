@@ -24,11 +24,10 @@ struct HiddenPlatformTests {
         journey.live = LiveSummary(state: .live, platform: Platform(number: "2", source: .live, confirmed: true, hidden: true), isCancelled: false, stale: false)
         let model = JourneyCardModel(journey: journey)
         #expect(model.platform == "2")
-        #expect(model.platformKind == .notAnnounced(changedFrom: "3"))
-        #expect(model.platformKind.accessibilityNote.contains("not yet announced"))
+        #expect(model.platformConfirmed) // Darwin confirmed it, whatever the station's boards show.
 
         journey.live?.platform = Platform(number: "3", source: .live, confirmed: false, hidden: true)
-        #expect(JourneyCardModel(journey: journey).platformKind == .notAnnounced(changedFrom: nil))
+        #expect(!JourneyCardModel(journey: journey).platformConfirmed)
     }
 
     @Test func liveActivityPlatformHidden() throws {

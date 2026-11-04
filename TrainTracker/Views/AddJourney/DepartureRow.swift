@@ -86,7 +86,7 @@ struct DepartureRow: View {
         if departure.live?.isCancelled == true {
             parts.append("Cancelled")
         } else if let platform = departure.live?.platform {
-            parts.append(platform.hidden ? "Platform \(platform.number) (not announced)" : "Platform \(platform.number)\(platform.confirmed ? " ✓" : "")")
+            parts.append("Platform \(platform.number)\(platform.confirmed ? " ✓" : "")")
         } else if let platform = departure.bookedPlatform {
             parts.append("Platform \(platform)")
         }

@@ -12,8 +12,8 @@ struct JourneyCardModel: Equatable {
     var timeTone: Tone
     /// Live platform when Darwin has one, else the booked one.
     var platform: String?
-    /// Booked, live (and whether confirmed), or changed from the booked platform.
-    var platformKind: PlatformBadge.Kind
+    /// Confirmed by Darwin; otherwise predicted (timetabled, or live but unconfirmed).
+    var platformConfirmed: Bool
     /// Share of the trip completed (0...1) once the train has left; nil before.
     var progress: Double?
     /// "in 43 min", "leaves in 12 min", "Arrived 11:27", "Cancelled".
@@ -34,20 +34,8 @@ struct JourneyCardModel: Equatable {
 
         time = RailTime.hhmm(departure)
         timeTone = cancelled ? .cancelled : late ? .late : .normal
-        let booked = journey.from.bookedPlatform
-        if let livePlatform = live?.platform {
-            platform = livePlatform.number
-            if livePlatform.hidden {
-                platformKind = .notAnnounced(changedFrom: booked != livePlatform.number ? booked : nil)
-            } else if let booked, booked != livePlatform.number {
-                platformKind = .changed(from: booked, confirmed: livePlatform.confirmed)
-            } else {
-                platformKind = .live(confirmed: livePlatform.confirmed)
-            }
-        } else {
-            platform = booked
-            platformKind = .booked
-        }
+        platform = live?.platform?.number ?? journey.from.bookedPlatform
+        platformConfirmed = live?.platform?.confirmed ?? false
         progress = nil
         status = nil
         statusTone = .normal

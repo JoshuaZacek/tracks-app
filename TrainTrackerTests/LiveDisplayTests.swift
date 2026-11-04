@@ -59,17 +59,18 @@ struct LiveDisplayTests {
         #expect(stale.staleNote == "Last updated 09:00")
     }
 
-    @Test func platformBookedLiveOrChanged() {
+    @Test func platformConfirmedOrPredicted() {
         let booked = JourneyCardModel(journey: journey(nil))
         #expect(booked.platform == "3")
-        #expect(booked.platformKind == .booked)
+        #expect(!booked.platformConfirmed)
 
-        let same = JourneyCardModel(journey: journey(live(.live, platform: Platform(number: "3", source: .live, confirmed: false))))
-        #expect(same.platformKind == .live(confirmed: false))
+        let unconfirmed = JourneyCardModel(journey: journey(live(.live, platform: Platform(number: "3", source: .live, confirmed: false))))
+        #expect(!unconfirmed.platformConfirmed)
 
+        // A change from the timetable looks the same; the push alert announces it.
         let changed = JourneyCardModel(journey: journey(live(.live, platform: Platform(number: "5A", source: .live, confirmed: true))))
         #expect(changed.platform == "5A")
-        #expect(changed.platformKind == .changed(from: "3", confirmed: true))
+        #expect(changed.platformConfirmed)
     }
 
     // MARK: Real responses
