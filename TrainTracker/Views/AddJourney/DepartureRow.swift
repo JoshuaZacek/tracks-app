@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One train in the Add journey list, with Darwin's live times, platform and
+/// One train in the Add train list, with Darwin's live times, platform and
 /// cancellations for trains running today.
 struct DepartureRow: View {
     let departure: Departure
@@ -82,7 +82,7 @@ struct DepartureRow: View {
     }
 
     private var details: String {
-        var parts = [departure.operator.name, departure.headcode]
+        var parts = [departure.operator.name]
         if departure.live?.isCancelled == true {
             parts.append("Cancelled")
         } else if let platform = departure.live?.platform {

@@ -43,7 +43,7 @@ struct StationPicker: View {
             }
         }
         .navigationTitle(title)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Station name or CRS")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Station name or code")
         .searchFocused($searchFocused)
         .autocorrectionDisabled()
         .textInputAutocapitalization(.never)

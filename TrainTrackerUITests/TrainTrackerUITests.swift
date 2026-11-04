@@ -22,7 +22,7 @@ final class TrainTrackerUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["No journeys yet"].waitForExistence(timeout: 15)) // first launch after install is slow
-        app.buttons["Add journey"].firstMatch.tap()
+        app.buttons["Add train"].firstMatch.tap()
 
         // Choose York, by typing its name.
         app.buttons["fromStation"].tap()
@@ -41,7 +41,7 @@ final class TrainTrackerUITests: XCTestCase {
         // Save the first train listed.
         let departure = app.buttons.matching(identifier: "departure").firstMatch
         XCTAssertTrue(departure.waitForExistence(timeout: 15))
-        attachScreenshot(of: app, named: "Add journey: departures")
+        attachScreenshot(of: app, named: "Add train: departures")
         departure.tap()
 
         // The sheet closes and the journey appears.
@@ -103,7 +103,7 @@ final class TrainTrackerUITests: XCTestCase {
         app.launchArguments = Self.localServer + ["-uiTesting"]
         app.launch()
 
-        app.buttons["Add journey"].firstMatch.tap()
+        app.buttons["Add train"].firstMatch.tap()
         app.buttons["fromStation"].tap()
         let kingsCross = app.buttons["station-KGX"]
         if !kingsCross.waitForExistence(timeout: 3) {

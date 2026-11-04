@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 /// The "+" sheet: pick a date and stations, then tap a departure to save it.
-/// Mirrors the web app's Add journey page.
+/// Mirrors the web app's Add journey page; titled "Add train".
 struct AddJourneyView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
@@ -17,6 +17,8 @@ struct AddJourneyView: View {
     @State private var loading = false
     @State private var error: String?
     @State private var savingID: String?
+    /// Whether the trains that have already left are shown; they fold into one row by default.
+    @State private var showDeparted = false
 
     /// Everything a search depends on; a change re-runs it.
     private struct SearchKey: Equatable {
@@ -35,7 +37,7 @@ struct AddJourneyView: View {
             Form {
                 Section {
                     DatePicker("Date", selection: $date, in: RailTime.calendar.startOfDay(for: .now)..., displayedComponents: .date)
-                    DatePicker("From time", selection: $after, displayedComponents: .hourAndMinute)
+                    DatePicker("Leaving after", selection: $after, displayedComponents: .hourAndMinute)
                     NavigationLink {
                         StationPicker(title: "From", selection: $from)
                     } label: {
@@ -60,14 +62,17 @@ struct AddJourneyView: View {
                     departuresSection
                 }
             }
-            .navigationTitle("Add journey")
+            .navigationTitle("Add train")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", systemImage: "xmark") { dismiss() }
                 }
             }
-            .task(id: key) { await search() }
+            .task(id: key) {
+                showDeparted = false
+                await search()
+            }
             .onChange(of: RailTime.ymd(date)) { _, newDate in
                 // Today starts around now; a future day starts at midnight.
                 after = newDate == RailTime.ymd(.now) ? Self.startOfHour(.now) : RailTime.calendar.startOfDay(for: date)
@@ -81,25 +86,20 @@ struct AddJourneyView: View {
                 Text("No passenger trains found. Try an earlier time or another date.")
                     .foregroundStyle(.secondary)
             }
-            ForEach(departures) { d in
-                Button {
-                    Task { await save(d) }
-                } label: {
-                    DepartureRow(
-                        departure: d,
-                        // A late train that hasn't left yet isn't dimmed.
-                        departed: d.live?.actualDeparture != nil || (d.live?.expectedDeparture ?? d.scheduledDeparture) < .now,
-                        saved: isSaved(d),
-                        saving: savingID == d.id
-                    )
-                }
-                .tint(.primary)
-                .disabled(savingID != nil || isSaved(d))
-                .accessibilityIdentifier("departure")
+            let left = departures.filter(hasLeft)
+            if !left.isEmpty {
+                departedToggle(count: left.count)
             }
-            if response?.nextCursor != nil {
-                Button("Later trains") { Task { await search(appending: true) } }
-                    .disabled(loading)
+            ForEach(departures.filter { showDeparted || !hasLeft($0) }) { d in
+                row(d)
+            }
+            // Infinite scroll: reaching the bottom loads the next page. The id
+            // gives each page a fresh row, so onAppear fires again while it stays on screen.
+            if let cursor = response?.nextCursor {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .id(cursor)
+                    .onAppear { Task { await search(appending: true) } }
             }
         } header: {
             HStack {
@@ -114,12 +114,52 @@ struct AddJourneyView: View {
         }
     }
 
+    private func row(_ d: Departure) -> some View {
+        Button {
+            Task { await save(d) }
+        } label: {
+            DepartureRow(departure: d, departed: hasLeft(d), saved: isSaved(d), saving: savingID == d.id)
+        }
+        .tint(.primary)
+        .disabled(savingID != nil || isSaved(d))
+        .accessibilityIdentifier("departure")
+    }
+
+    /// A late train that hasn't left yet still counts as upcoming.
+    private func hasLeft(_ d: Departure) -> Bool {
+        d.live?.actualDeparture != nil || (d.live?.expectedDeparture ?? d.scheduledDeparture) < .now
+    }
+
+    /// "Show 3 departed trains" while folded, "Hide 3 departed trains" while expanded, like the
+    /// folded stops on a journey's stop list.
+    private func departedToggle(count: Int) -> some View {
+        let trains = count == 1 ? "1 departed train" : "\(count) departed trains"
+        return Button {
+            withAnimation(.snappy) { showDeparted.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Text(showDeparted ? "Hide \(trains)" : "Show \(trains)")
+                    .font(.subheadline.weight(.medium))
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .rotationEffect(.degrees(showDeparted ? 180 : 0))
+                Spacer()
+            }
+            .foregroundStyle(.tint)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("departedTrains")
+    }
+
     private func search(appending: Bool = false) async {
         guard let from else {
             response = nil
             departures = []
             return
         }
+        if appending && loading { return }
+        let started = key
         loading = true
         error = nil
         defer { loading = false }
@@ -131,6 +171,8 @@ struct AddJourneyView: View {
                 after: key.after,
                 cursor: appending ? response?.nextCursor : nil
             )
+            // A new search started while this page loaded.
+            if appending && key != started { return }
             response = r
             if appending {
                 let seen = Set(departures.map(\.id))

@@ -79,7 +79,7 @@ struct JourneysView: View {
                 }
                 ToolbarSpacer(.flexible, placement: .bottomBar)
                 ToolbarItem(placement: .bottomBar) {
-                    Button("Add journey", systemImage: "plus") { addingJourney = true }
+                    Button("Add train", systemImage: "plus") { addingJourney = true }
                         .buttonStyle(.glassProminent)
                 }
             }
