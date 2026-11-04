@@ -28,7 +28,6 @@ struct JourneyDetailView: View {
                     let rows = StopRow.rows(for: journey, liveCallingPoints: model.liveCallingPoints, now: now)
                     StopList(
                         rows: rows,
-                        indicator: indicator(now: now),
                         trainFraction: trainFraction(rows: rows, now: now)
                     )
                 }
@@ -78,24 +77,6 @@ struct JourneyDetailView: View {
         guard model.status?.state == .departed, let last = rows.lastIndex(where: \.passed), last < rows.count - 1 else { return nil }
         // Row ids are calling point indexes, and my stops are consecutive calling points.
         return RouteGeometry.legFraction(leg: rows[last].id, liveCallingPoints: model.liveCallingPoints, now: now) ?? 0.5
-    }
-
-    /// Between the last stop passed and the next, while the train is on my part of the
-    /// route: a countdown to the next stop, and the train's last report.
-    private func indicator(now: Date) -> StopList.Indicator? {
-        guard let status = model.status, status.state == .departed, let position = status.position else { return nil }
-        let verb = switch position.last.event {
-        case .arrival: "At"
-        case .departure: "Left"
-        case .pass: "Passed"
-        }
-        let next = position.next.map { n -> StopList.Indicator.Next in
-            n.expectedTime > now ? .countdown(name: n.name, from: now, to: n.expectedTime) : .approaching(name: n.name)
-        }
-        return StopList.Indicator(
-            next: next,
-            report: "\(verb) \(position.last.name) \(RailTime.hhmm(position.last.time))"
-        )
     }
 }
 

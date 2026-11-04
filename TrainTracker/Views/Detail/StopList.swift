@@ -55,30 +55,17 @@ struct StopRow: Identifiable, Equatable {
 
 /// The stops down a track line: grey, filled in teal from my station to where
 /// the train is now (by time between the last stop it reached and the next),
-/// with the train on the line and, beside it, a countdown to the next stop
-/// ("Peterborough in 3:42") and its last report. The stops between my station and the
+/// with the train on the line. The stops between my station and the
 /// last one the train reached fold into one row ("5 stations") until expanded.
 struct StopList: View {
-    struct Indicator: Equatable {
-        enum Next: Equatable {
-            /// Counts down to the expected time by itself, second by second.
-            case countdown(name: String, from: Date, to: Date)
-            /// The expected time has come: "Approaching Peterborough".
-            case approaching(name: String)
-        }
-        var next: Next?
-        var report: String
-    }
-
     let rows: [StopRow]
-    let indicator: Indicator?
-    /// 0...1 from the last stop reached to the next, while the train is between them.
+    /// 0...1 from the last stop reached to the next, while the train is between them;
+    /// the train is drawn on the line only then.
     var trainFraction: Double?
     @State private var expanded: Bool
 
-    init(rows: [StopRow], indicator: Indicator?, trainFraction: Double? = nil, expanded: Bool = false) {
+    init(rows: [StopRow], trainFraction: Double? = nil, expanded: Bool = false) {
         self.rows = rows
-        self.indicator = indicator
         self.trainFraction = trainFraction
         _expanded = State(initialValue: expanded)
     }
@@ -96,9 +83,6 @@ struct StopList: View {
                 }
                 if expanded || !(folded?.contains(index) ?? false) {
                     stop(row)
-                }
-                if let indicator, index == lastPassed, index < rows.count - 1 {
-                    indicatorRow(indicator)
                 }
             }
         }
@@ -144,7 +128,7 @@ struct StopList: View {
 
     @ViewBuilder
     private func train(_ centers: [Int: CGPoint], lastPassed: Int?) -> some View {
-        if indicator != nil, trainFraction != nil, let lastPassed, lastPassed < rows.count - 1,
+        if trainFraction != nil, let lastPassed, lastPassed < rows.count - 1,
            let x = rows.first.flatMap({ centers[$0.id]?.x }), let y = fillY(centers, lastPassed: lastPassed) {
             Image(systemName: "tram.fill")
                 .font(.footnote.weight(.semibold))
@@ -153,7 +137,8 @@ struct StopList: View {
                 .background(.tint, in: .circle)
                 .overlay(Circle().stroke(Color(.secondarySystemGroupedBackground), lineWidth: 2))
                 .position(x: x, y: y)
-                .accessibilityHidden(true)
+                .accessibilityLabel("Train")
+                .accessibilityIdentifier("trainIndicator")
         }
     }
 
@@ -207,9 +192,11 @@ struct StopList: View {
                 if row.cancelled {
                     Text("Cancelled").font(.footnote).foregroundStyle(.red)
                 } else if let platform = row.platform {
-                    Text("Platform \(platform)\(row.platformConfirmed ? " · confirmed" : "")")
+                    // A confirmed platform gets a plain tick, as in Add train's departure list.
+                    Text("Platform \(platform)\(row.platformConfirmed ? " ✓" : "")")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel(row.platformConfirmed ? "Platform \(platform), confirmed" : "Platform \(platform)")
                 }
             }
             .foregroundStyle(row.passed ? .secondary : .primary)
@@ -228,31 +215,6 @@ struct StopList: View {
         }
         .padding(.vertical, 10)
         .accessibilityElement(children: .combine)
-    }
-
-    /// Beside the track (the train itself is drawn on it).
-    private func indicatorRow(_ indicator: Indicator) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Color.clear.frame(width: Self.dot, height: 1)
-            VStack(alignment: .leading, spacing: 2) {
-                switch indicator.next {
-                case .countdown(let name, let from, let to):
-                    let timer = Text(timerInterval: from...max(from, to), countsDown: true)
-                        .monospacedDigit()
-                        .foregroundStyle(.tint)
-                    Text("\(name) in \(timer)").font(.subheadline.weight(.semibold))
-                case .approaching(let name):
-                    Text("Approaching \(name)").font(.subheadline.weight(.semibold))
-                case nil:
-                    EmptyView()
-                }
-                Text(indicator.report).font(.footnote).foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 8)
-        .padding(.leading, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("trainIndicator")
     }
 }
 
