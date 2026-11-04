@@ -8,7 +8,7 @@ struct JourneysView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @State private var search = ""
-    /// The filter button shows the search field; cancelling it hides the field again.
+    /// The search button shows the search field; cancelling it hides the field again.
     @State private var filtering = false
     @State private var searching = false
     @State private var addingJourney = false
@@ -22,7 +22,7 @@ struct JourneysView: View {
         NavigationStack(path: $path) {
             // Re-sorted into sections every minute as journeys start and finish.
             TimelineView(.everyMinute) { timeline in
-                let filtered = journeys.filter { JourneyFilter.matches($0, query: search) }
+                let filtered = journeys.filter { JourneyFilter.matches($0, query: search, now: timeline.date) }
                 let statuses = Dictionary(filtered.compactMap { j in j.live.map { (j.id, $0) } }, uniquingKeysWith: { a, _ in a })
                 let sections = JourneySections(journeys: filtered, statuses: statuses, now: timeline.date)
                 List {
@@ -67,11 +67,11 @@ struct JourneysView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Filter", systemImage: "line.3.horizontal.decrease") {
+                    Button("Search", systemImage: "magnifyingglass") {
                         filtering = true
                         searching = true
                     }
-                    .accessibilityIdentifier("filter")
+                    .accessibilityIdentifier("search")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Settings", systemImage: "ellipsis") { showingSettings = true }
@@ -231,7 +231,7 @@ private struct FilterField: ViewModifier {
 
     func body(content: Content) -> some View {
         if shown {
-            content.searchable(text: $text, isPresented: $isPresented, prompt: "Station, headcode or operator")
+            content.searchable(text: $text, isPresented: $isPresented, prompt: "Search")
         } else {
             content
         }

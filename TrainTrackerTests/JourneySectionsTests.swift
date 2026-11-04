@@ -80,9 +80,39 @@ struct JourneySectionsTests {
         #expect(JourneyFilter.matches(j, query: "york"))
         #expect(JourneyFilter.matches(j, query: "KGX"))
         #expect(JourneyFilter.matches(j, query: "york kings"))
-        #expect(JourneyFilter.matches(j, query: "1a23"))
+        #expect(!JourneyFilter.matches(j, query: "1a23")) // headcodes aren't searchable
         #expect(JourneyFilter.matches(j, query: "lner"))
         #expect(!JourneyFilter.matches(j, query: "leeds"))
         #expect(!JourneyFilter.matches(j, query: "york leeds"))
+
+        // Operators by the short name passengers use, as well as in full.
+        let tpe = journey("18:00")
+        tpe.operatorCode = "TP"
+        tpe.operatorName = "TransPennine Express"
+        #expect(JourneyFilter.matches(tpe, query: "tpe"))
+        #expect(JourneyFilter.matches(tpe, query: "transpennine"))
+        #expect(!JourneyFilter.matches(tpe, query: "lner"))
+    }
+
+    @Test func filterByDateAndTime() {
+        // Monday 2 November, 18:00; now is Monday 12:00.
+        let j = journey("18:00")
+        let tomorrowMorning = journey("07:15", date: "2026-11-03")
+        func m(_ j: Journey, _ q: String) -> Bool { JourneyFilter.matches(j, query: q, now: now) }
+
+        #expect(m(j, "today") && !m(j, "tomorrow") && !m(j, "yesterday"))
+        #expect(m(tomorrowMorning, "tomorrow") && !m(tomorrowMorning, "today"))
+        #expect(m(j, "tonight") && !m(tomorrowMorning, "tonight"))
+        #expect(m(j, "evening") && !m(j, "morning") && !m(j, "afternoon"))
+        #expect(m(tomorrowMorning, "morning"))
+        #expect(m(j, "mon") && m(j, "Monday") && !m(j, "fri"))
+        #expect(m(tomorrowMorning, "tue") && m(tomorrowMorning, "tuesday"))
+        #expect(m(j, "nov") && m(j, "november") && !m(j, "dec"))
+        #expect(m(j, "2 nov") && !m(j, "3 nov") && m(tomorrowMorning, "3 november"))
+        #expect(m(j, "18:00") && m(j, "18:") && !m(j, "19:00"))
+        #expect(m(tomorrowMorning, "7:15") && m(tomorrowMorning, "07:1"))
+        // Mixed with stations.
+        #expect(m(j, "york today") && !m(j, "york tomorrow"))
+        #expect(!m(j, "leeds today"))
     }
 }

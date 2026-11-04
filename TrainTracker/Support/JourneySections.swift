@@ -77,13 +77,88 @@ struct JourneySections {
 }
 
 /// The search filter: every word must match a station (CRS or name) between
-/// boarding and alighting, the headcode or the operator.
+/// boarding and alighting, the operator (full name, code or the short name
+/// passengers use, like "gwr"), or the departure date or time (see `matchesWhen`).
 enum JourneyFilter {
-    static func matches(_ j: Journey, query: String) -> Bool {
-        let words = query.lowercased().split(whereSeparator: \.isWhitespace)
+    static func matches(_ j: Journey, query: String, now: Date = .now) -> Bool {
+        let words = query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
         guard !words.isEmpty else { return true }
         let stops = j.callingPoints[j.fromIndex...j.toIndex]
-        let haystack = (stops.flatMap { [$0.crs, $0.name] } + [j.headcode, j.operatorName, j.operatorCode]).map { $0.lowercased() }
-        return words.allSatisfy { word in haystack.contains { $0.contains(word) } }
+        let operatorNames = [j.operatorName, j.operatorCode, shortOperatorNames[j.operatorCode, default: j.operatorName]]
+        let haystack = (stops.flatMap { [$0.crs, $0.name] } + operatorNames).map { $0.lowercased() }
+        return words.allSatisfy { word in
+            switch matchesWhen(j.departsAt, word: word, now: now) {
+            case .match: true
+            case .noMatch: false
+            // Weekday and month names can also be stations ("mar" for Marylebone).
+            case .name(let matched): matched || haystack.contains { $0.contains(word) }
+            case nil: haystack.contains { $0.contains(word) }
+            }
+        }
     }
+
+    enum When: Equatable { case match, noMatch, name(Bool) }
+
+    /// Date and time words, matched against the departure in UK time, or nil
+    /// for any other word:
+    /// - "today", "tomorrow", "yesterday", "tonight" (today from 17:00)
+    /// - a weekday ("fri", "friday") or a month ("nov", "november")
+    /// - a day of the month ("6"), so "6 nov" finds 6 November
+    /// - "morning" (before 12:00), "afternoon" (12:00–17:00), "evening" (from 17:00)
+    /// - a time ("18:00", "9:30") or the start of one ("18:")
+    static func matchesWhen(_ departs: Date, word: String, now: Date) -> When? {
+        let cal = RailTime.calendar
+        let c = cal.dateComponents([.month, .day, .weekday, .hour], from: departs)
+        let hour = c.hour ?? 0
+        let dayOffset = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: cal.startOfDay(for: departs)).day ?? 0
+
+        func when(_ b: Bool) -> When { b ? .match : .noMatch }
+        switch word {
+        case "today": return when(dayOffset == 0)
+        case "tomorrow": return when(dayOffset == 1)
+        case "yesterday": return when(dayOffset == -1)
+        case "tonight": return when(dayOffset == 0 && hour >= 17)
+        case "morning": return when(hour < 12)
+        case "afternoon": return when((12..<17).contains(hour))
+        case "evening": return when(hour >= 17)
+        default: break
+        }
+        if let weekday = symbolIndex(of: word, in: cal.weekdaySymbols) {
+            return .name(c.weekday == weekday + 1)
+        }
+        if let month = symbolIndex(of: word, in: cal.monthSymbols) {
+            return .name(c.month == month + 1)
+        }
+        if word.allSatisfy(\.isNumber), let day = Int(word), (1...31).contains(day) {
+            return when(c.day == day)
+        }
+        // "9:30" → "09:30", then a prefix match on "HH:MM".
+        if let colon = word.firstIndex(of: ":"), word[..<colon].allSatisfy(\.isNumber), (1...2).contains(word.distance(from: word.startIndex, to: colon)) {
+            let time = colon == word.index(after: word.startIndex) ? "0" + word : word
+            return when(RailTime.hhmm(departs).hasPrefix(time))
+        }
+        return nil
+    }
+
+    /// A full English name ("friday") or its first three letters ("fri").
+    private static func symbolIndex(of word: String, in symbols: [String]) -> Int? {
+        guard word.count >= 3 else { return nil }
+        return symbols.firstIndex { name in
+            let name = name.lowercased()
+            return name == word || (word.count == 3 && name.hasPrefix(word))
+        }
+    }
+
+    /// What passengers call each operator, by code, so "gwr" or "tpe" finds
+    /// journeys whose full name doesn't contain it.
+    private static let shortOperatorNames: [String: String] = [
+        "AW": "TfW", "CC": "c2c", "CH": "Chiltern", "CS": "Sleeper", "EM": "EMR",
+        "ES": "Eurostar", "GC": "Grand Central", "GN": "Great Northern", "GR": "LNER",
+        "GW": "GWR", "GX": "Gatwick Exp", "HT": "Hull Trains", "HX": "Heathrow Exp",
+        "IL": "Island Line", "LD": "Lumo", "LE": "Greater Anglia", "LM": "WMR",
+        "LO": "Overground", "ME": "Merseyrail", "NT": "Northern", "NY": "NYMR",
+        "SE": "Southeastern", "SN": "Southern", "SR": "ScotRail", "SW": "SWR",
+        "SX": "Stansted Exp", "TL": "Thameslink", "TP": "TPE", "TW": "Metro",
+        "VT": "Avanti", "WR": "West Coast", "XC": "CrossCountry", "XR": "Elizabeth line",
+    ]
 }
