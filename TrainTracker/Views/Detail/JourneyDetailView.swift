@@ -25,9 +25,11 @@ struct JourneyDetailView: View {
                         .clipShape(.rect(cornerRadius: 24, style: .continuous))
                     JourneyCard(journey: journey, now: now)
                     notes
+                    let rows = StopRow.rows(for: journey, liveCallingPoints: model.liveCallingPoints, now: now)
                     StopList(
-                        rows: StopRow.rows(for: journey, liveCallingPoints: model.liveCallingPoints, now: now),
-                        indicator: indicator(train: train, now: now)
+                        rows: rows,
+                        indicator: indicator(train: train, now: now),
+                        trainFraction: trainFraction(rows: rows, now: now)
                     )
                     if train != nil, let attribution = model.placeIndex?.attribution {
                         Text("Place names: \(attribution)")
@@ -72,6 +74,14 @@ struct JourneyDetailView: View {
             .padding(14)
             .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 18, style: .continuous))
         }
+    }
+
+    /// How far the train is from the last of my stops it reached to the next, by
+    /// time (as on the map); nil unless it's under way on my part of the route.
+    private func trainFraction(rows: [StopRow], now: Date) -> Double? {
+        guard model.status?.state == .departed, let last = rows.lastIndex(where: \.passed), last < rows.count - 1 else { return nil }
+        // Row ids are calling point indexes, and my stops are consecutive calling points.
+        return RouteGeometry.legFraction(leg: rows[last].id, liveCallingPoints: model.liveCallingPoints, now: now) ?? 0.5
     }
 
     /// Between the last stop passed and the next, while the train is on my part of the route.

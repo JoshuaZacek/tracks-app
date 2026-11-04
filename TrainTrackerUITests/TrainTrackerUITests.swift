@@ -53,7 +53,7 @@ final class TrainTrackerUITests: XCTestCase {
         // Archive it: it moves to Past.
         card.swipeRight()
         app.buttons["Archive"].tap()
-        XCTAssertTrue(app.staticTexts["Past"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Complete"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["Upcoming"].exists || app.staticTexts["Live"].exists)
     }
 
@@ -67,12 +67,12 @@ final class TrainTrackerUITests: XCTestCase {
         // Whether a Live section exists depends on the time of day (none at 2 a.m.);
         // Live sorting is covered by JourneySectionsTests with fixed times.
         // Past sits at the bottom of the list.
-        let past = app.staticTexts["Past"]
+        let past = app.staticTexts["Complete"]
         for _ in 0..<8 where !past.isHittable {
             app.swipeUp()
         }
         XCTAssertTrue(past.exists)
-        attachScreenshot(of: app, named: "Past section")
+        attachScreenshot(of: app, named: "Complete section")
     }
 
     /// Real trains: needs some running (daytime). Opens the journey that's under way

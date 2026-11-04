@@ -38,8 +38,8 @@ struct JourneysView: View {
                         groups(sections.upcoming, now: timeline.date)
                     }
                     if !sections.past.isEmpty {
-                        sectionTitle("Past")
-                        groups(sections.past, now: timeline.date)
+                        sectionTitle("Complete")
+                        groups(sections.past, now: timeline.date, dimmed: true)
                     }
                 }
                 .listStyle(.plain)
@@ -129,6 +129,7 @@ struct JourneysView: View {
         HStack(spacing: 10) {
             if liveDot {
                 Circle().fill(.tint).frame(width: 12, height: 12)
+                    .background { PulsingHalo() }
             }
             Text(title).font(.title2.bold())
         }
@@ -139,7 +140,8 @@ struct JourneysView: View {
     }
 
     @ViewBuilder
-    private func groups(_ groups: [JourneyGroup], now: Date) -> some View {
+    /// `dimmed`: finished journeys, faded like a disabled control (still tappable).
+    private func groups(_ groups: [JourneyGroup], now: Date, dimmed: Bool = false) -> some View {
         ForEach(groups) { group in
             Text(group.label)
                 .font(.headline.weight(.regular))
@@ -150,6 +152,7 @@ struct JourneysView: View {
                 .accessibilityAddTraits(.isHeader)
             ForEach(group.journeys) { journey in
                 JourneyCard(journey: journey, now: now)
+                    .completeStyle(dimmed)
                     // Tapping opens the journey; a hidden link keeps the card free of a disclosure chevron.
                     .background {
                         NavigationLink(value: journey.id) { EmptyView() }

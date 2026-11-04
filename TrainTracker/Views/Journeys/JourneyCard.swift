@@ -15,7 +15,8 @@ struct JourneyCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 10) {
                     Text(journey.from.crs)
-                    RouteLine(progress: model.progress)
+                    // Pulses while the train is under way and the live feed is current.
+                    RouteLine(progress: model.progress, pulsing: model.staleNote == nil)
                     Text(journey.to.crs)
                 }
                 .font(.title3.weight(.semibold))
@@ -65,6 +66,111 @@ struct JourneyCard: View {
     }
 }
 
+/// The one rhythm for everything that says "live": the Live dot's ring and
+/// the under-way bar's fill start together on this clock, on every card.
+enum LivePulse {
+    /// One beat this often.
+    static let period: TimeInterval = 5
+    /// Seconds into the current beat (the same for every view at a given moment).
+    static func phase(at date: Date) -> TimeInterval {
+        date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period)
+    }
+    /// Which beat it is, for telling waves apart.
+    static func beat(at date: Date) -> Double {
+        (date.timeIntervalSinceReferenceDate / period).rounded(.down)
+    }
+}
+
+/// The under-way fill in two layers: a lighter "shadow" of the whole fill (so
+/// the train's position always shows), and waves of solid teal growing through
+/// it from the start to the train, like a ride-hailing app's trip bar. A new
+/// wave starts on each LivePulse beat (with the Live dot's ring) and grows over
+/// the last one, which holds at the train until then and fades as it's covered.
+private struct FlowingFill: View {
+    let width: CGFloat
+    /// Each wave: grows to the train, holds until the next beat, then fades under the next wave.
+    private static let grow: TimeInterval = 1.8
+    private static let hold: TimeInterval = LivePulse.period - grow
+    private static let fade: TimeInterval = 1.0
+
+    var body: some View {
+        TimelineView(.animation) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let newest = LivePulse.beat(at: context.date)
+            ZStack(alignment: .leading) {
+                // Backed in the card's colour so the grey track doesn't show through.
+                Capsule().fill(Color(.secondarySystemGroupedBackground))
+                Capsule().fill(.tint.opacity(0.3))
+                // The previous wave (fading), then the new one over it.
+                ForEach([newest - 1, newest], id: \.self) { wave in
+                    let age = t - wave * LivePulse.period
+                    Capsule()
+                        .fill(.tint)
+                        .frame(width: Self.reach(age) * width)
+                        .opacity(Self.opacity(age))
+                }
+            }
+            .frame(width: width, alignment: .leading)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private static func reach(_ age: TimeInterval) -> Double { fastThenSlow(min(max(age / grow, 0), 1)) }
+
+    /// Rushes through the first 60% of the distance in the first 30% of the
+    /// time, then slows gradually through the rest to a stop. The slow part
+    /// starts at the fast part's speed, so there's no jolt between them.
+    static func fastThenSlow(_ x: Double) -> Double {
+        let fastTime = 0.3, fastDistance = 0.6
+        if x <= fastTime { return fastDistance * x / fastTime }
+        let u = (x - fastTime) / (1 - fastTime)
+        // 1 - (1 - u)^k starts at speed k; k matches the fast part's speed.
+        let k = (fastDistance / fastTime) * (1 - fastTime) / (1 - fastDistance)
+        return fastDistance + (1 - fastDistance) * (1 - pow(1 - u, k))
+    }
+
+    private static func opacity(_ age: TimeInterval) -> Double {
+        1 - easeInOut(min(max((age - grow - hold) / fade, 0), 1))
+    }
+
+    private static func easeInOut(_ x: Double) -> Double { x * x * (3 - 2 * x) }
+}
+
+/// A soft teal ring that grows out of whatever it's behind and fades, once
+/// per LivePulse beat (in step with the under-way bars): "this is live".
+/// Nothing when Reduce Motion is on.
+struct PulsingHalo: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// How long the ring takes to go out.
+    private static let duration: TimeInterval = 2.4
+
+    var body: some View {
+        if !reduceMotion {
+            TimelineView(.animation) { context in
+                let x = min(LivePulse.phase(at: context.date) / Self.duration, 1)
+                let out = 1 - (1 - x) * (1 - x) // ease out
+                Circle()
+                    .fill(.tint)
+                    .scaleEffect(1 + 1.6 * out)
+                    .opacity(0.45 * (1 - out))
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+extension View {
+    /// Finished journeys: grey and faded, like a disabled control. Flattened
+    /// first so the card's layers don't show through each other.
+    func completeStyle(_ complete: Bool = true) -> some View {
+        compositingGroup()
+            .saturation(complete ? 0 : 1)
+            .opacity(complete ? 0.5 : 1)
+    }
+}
+
 extension JourneyCardModel.Tone {
     /// Teal (the tint) normally; amber when late; red when cancelled.
     var style: AnyShapeStyle {
@@ -94,18 +200,22 @@ struct TimeBox: View {
 
 /// "Platform 4" as a small capsule: grey when booked (from the timetable),
 /// teal when Darwin shows it (with a tick once confirmed), amber when it has
-/// changed from the booked one.
+/// changed from the booked one, and outlined with a "not announced" mark when
+/// the station hasn't put it on its boards yet.
 struct PlatformBadge: View {
-    enum Kind: Equatable {
+    nonisolated enum Kind: Equatable, Sendable {
         case booked
         case live(confirmed: Bool)
         case changed(from: String, confirmed: Bool)
+        /// Known to Darwin but not yet announced at the station.
+        case notAnnounced(changedFrom: String?)
 
         var accessibilityNote: String {
             switch self {
             case .booked: ""
             case .live(let confirmed): confirmed ? ", confirmed" : ""
             case .changed(let from, let confirmed): ", changed from \(from)\(confirmed ? ", confirmed" : "")"
+            case .notAnnounced(let from): ", not yet announced at the station\(from.map { ", changed from \($0)" } ?? "")"
             }
         }
     }
@@ -115,24 +225,34 @@ struct PlatformBadge: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            if confirmed {
+            if case .notAnnounced = kind {
+                Image(systemName: "eye.slash")
+                    .imageScale(.small)
+            } else if confirmed {
                 Image(systemName: "checkmark.circle.fill")
                     .imageScale(.small)
             }
             Text("Platform \(number)")
         }
+        .lineLimit(1)
+        .fixedSize()
         .font(.footnote.weight(.semibold))
         .foregroundStyle(foreground)
         .padding(.horizontal, 9)
         .padding(.vertical, 4)
         .background(background, in: .capsule)
+        .overlay {
+            if case .notAnnounced = kind {
+                Capsule().strokeBorder(foreground, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Platform \(number)\(kind.accessibilityNote)")
     }
 
     private var confirmed: Bool {
         switch kind {
-        case .booked: false
+        case .booked, .notAnnounced: false
         case .live(let confirmed), .changed(_, let confirmed): confirmed
         }
     }
@@ -142,22 +262,28 @@ struct PlatformBadge: View {
         case .booked: AnyShapeStyle(.secondary)
         case .live: AnyShapeStyle(.tint)
         case .changed: AnyShapeStyle(Color.orange)
+        case .notAnnounced(let from): from == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange)
         }
     }
 
     private var background: AnyShapeStyle {
         switch kind {
         case .booked: AnyShapeStyle(Color(.tertiarySystemFill))
-        case .live: AnyShapeStyle(Color.accentColor.opacity(0.14))
+        case .live: AnyShapeStyle(.tint.opacity(0.14))
         case .changed: AnyShapeStyle(Color.orange.opacity(0.14))
+        case .notAnnounced: AnyShapeStyle(Color.clear)
         }
     }
 }
 
 /// The line between origin and destination: grey with end dots, filled in teal
-/// up to `progress` once the train is under way.
+/// up to `progress` once the train is under way; both dots teal when it's arrived.
+/// Solid colours, so the dots and the line don't show through each other.
 struct RouteLine: View {
     var progress: Double?
+    /// Solid teal flowing through a lighter copy of the fill while under way.
+    var pulsing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
@@ -165,22 +291,28 @@ struct RouteLine: View {
             let inset = dot / 2
             let width = max(0, geo.size.width - dot)
             let fill = CGFloat(min(max(progress ?? 0, 0), 1)) * width
+            let arrived = (progress ?? 0) >= 1
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color(.systemFill))
+                    .fill(Self.track)
                     .frame(height: 4)
                     .padding(.horizontal, inset)
-                if progress != nil {
+                if pulsing, !reduceMotion, let progress, progress > 0, progress < 1 {
+                    // Two layers: a light "shadow" of the fill, with solid teal flowing through it.
+                    FlowingFill(width: fill)
+                        .frame(width: fill, height: 4, alignment: .leading)
+                        .padding(.leading, inset)
+                } else if progress != nil {
                     Capsule()
                         .fill(.tint)
                         .frame(width: fill, height: 4)
                         .padding(.leading, inset)
                 }
                 Circle()
-                    .fill(progress != nil ? AnyShapeStyle(.tint) : AnyShapeStyle(Color(.systemFill)))
+                    .fill(progress != nil ? AnyShapeStyle(.tint) : AnyShapeStyle(Self.track))
                     .frame(width: dot, height: dot)
                 Circle()
-                    .fill(Color(.systemFill))
+                    .fill(arrived ? AnyShapeStyle(.tint) : AnyShapeStyle(Self.track))
                     .frame(width: dot, height: dot)
                     .offset(x: width)
             }
@@ -189,6 +321,12 @@ struct RouteLine: View {
         .frame(height: 12)
         .accessibilityHidden(true)
     }
+
+    /// The under-way fill's motion curve (see FlowingFill).
+    static func fastThenSlow(_ x: Double) -> Double { FlowingFill.fastThenSlow(x) }
+
+    /// Opaque greys matching the old translucent systemFill over a card.
+    static let track = Color(light: Color(.systemGray5), dark: Color(.systemGray4))
 }
 
 #if DEBUG // preview data is Debug-only
