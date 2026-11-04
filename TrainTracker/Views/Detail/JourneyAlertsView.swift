@@ -76,7 +76,7 @@ struct JourneyAlertsView: View {
             Text("Live Activity")
         } footer: {
             if !activities.areEnabled {
-                Text("Live Activities are turned off for TrainTracker in iPhone Settings.")
+                Text("Live Activities are turned off for tracks in iPhone Settings.")
             } else {
                 Text("Automatically starts 30 minutes before the train leaves.")
             }

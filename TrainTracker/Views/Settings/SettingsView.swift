@@ -82,7 +82,7 @@ struct SettingsView: View {
             } header: {
                 Text("Notifications are off")
             } footer: {
-                Text("Allow notifications for TrainTracker in Settings to get alerts.")
+                Text("Allow notifications for tracks in Settings to get alerts.")
             }
         default:
             if pushEnabledOnServer == false {
@@ -125,7 +125,7 @@ struct SettingsView: View {
             if LiveActivities.shared.areEnabled {
                 Text("Shows your train on the Lock Screen and in the Dynamic Island from 30 minutes before it leaves.")
             } else {
-                Text("Live Activities are turned off for TrainTracker in iPhone Settings.")
+                Text("Live Activities are turned off for tracks in iPhone Settings.")
             }
         }
     }

@@ -79,6 +79,8 @@
         "ENABLE_USER_SELECTED_FILES": "readonly",
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "Config/Info.plist",
+        "INFOPLIST_KEY_CFBundleDisplayName": "tracks",
+        "INFOPLIST_KEY_NSLocalNetworkUsageDescription": "tracks connects to the tracks server on your Mac over the local network.",
         "INFOPLIST_KEY_NSLocationWhenInUseUsageDescription": "Your location is sent to the tracks server only to find the stations near you, and isn't stored.",
         "INFOPLIST_KEY_NSSupportsLiveActivities": "YES",
         "INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates": "YES",
@@ -202,7 +204,7 @@
         "DEVELOPMENT_TEAM": "TYKCDFU4XA",
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "TrainTrackerWidgets/Info.plist",
-        "INFOPLIST_KEY_CFBundleDisplayName": "TrainTracker",
+        "INFOPLIST_KEY_CFBundleDisplayName": "tracks",
         "INFOPLIST_KEY_NSHumanReadableCopyright": "",
         "IPHONEOS_DEPLOYMENT_TARGET": "26.0",
         "LD_RUNPATH_SEARCH_PATHS": [
