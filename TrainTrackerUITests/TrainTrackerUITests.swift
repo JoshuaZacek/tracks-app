@@ -49,12 +49,6 @@ final class TrainTrackerUITests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 15))
         XCTAssertTrue(card.label.contains("from York to London Kings Cross"), card.label)
         attachScreenshot(of: app, named: "Journeys after adding")
-
-        // Archive it: it moves to Past.
-        card.swipeRight()
-        app.buttons["Archive"].tap()
-        XCTAssertTrue(app.staticTexts["Past"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["Upcoming"].exists || app.staticTexts["Live"].exists)
     }
 
     @MainActor

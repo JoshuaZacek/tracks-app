@@ -55,14 +55,19 @@ struct StopRow: Identifiable, Equatable {
 
 /// The stops down a track line: grey, filled in teal from my station to where
 /// the train is now (by time between the last stop it reached and the next),
-/// with the train on the line and, beside it, where it is ("Near Huntingdon"),
-/// its last report and the next stop. The stops between my station and the
+/// with the train on the line and, beside it, a countdown to the next stop
+/// ("Peterborough in 3:42") and its last report. The stops between my station and the
 /// last one the train reached fold into one row ("5 stations") until expanded.
 struct StopList: View {
     struct Indicator: Equatable {
-        var place: String
+        enum Next: Equatable {
+            /// Counts down to the expected time by itself, second by second.
+            case countdown(name: String, from: Date, to: Date)
+            /// The expected time has come: "Approaching Peterborough".
+            case approaching(name: String)
+        }
+        var next: Next?
         var report: String
-        var next: String?
     }
 
     let rows: [StopRow]
@@ -230,9 +235,16 @@ struct StopList: View {
         HStack(alignment: .top, spacing: 12) {
             Color.clear.frame(width: Self.dot, height: 1)
             VStack(alignment: .leading, spacing: 2) {
-                Text(indicator.place).font(.subheadline.weight(.semibold))
-                if let next = indicator.next {
-                    Text(next).font(.footnote).foregroundStyle(.tint)
+                switch indicator.next {
+                case .countdown(let name, let from, let to):
+                    let timer = Text(timerInterval: from...max(from, to), countsDown: true)
+                        .monospacedDigit()
+                        .foregroundStyle(.tint)
+                    Text("\(name) in \(timer)").font(.subheadline.weight(.semibold))
+                case .approaching(let name):
+                    Text("Approaching \(name)").font(.subheadline.weight(.semibold))
+                case nil:
+                    EmptyView()
                 }
                 Text(indicator.report).font(.footnote).foregroundStyle(.secondary)
             }

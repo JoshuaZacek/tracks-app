@@ -21,7 +21,7 @@ struct StopListRenderTests {
         let last = try #require(reached)
         let fraction = RouteGeometry.legFraction(leg: rows[last].id, liveCallingPoints: train.callingPoints, now: now)
         #expect(fraction != nil)
-        let indicator = StopList.Indicator(place: "Owl End, near Huntingdon", report: "Passed Huntingdon 10:16", next: "Peterborough in 4 min")
+        let indicator = StopList.Indicator(next: .countdown(name: "Peterborough", from: .now, to: .now + 222), report: "Passed Huntingdon 10:16")
         // Folded (as the screen opens) and expanded, each in light and dark.
         let view = HStack(alignment: .top, spacing: 0) {
             ForEach([false, true], id: \.self) { expanded in
@@ -51,7 +51,7 @@ struct StopListRenderTests {
             StopRow(id: i, name: names[i], time: times[i], scheduled: nil, late: false, passed: i <= 4, cancelled: false,
                     platform: "\(i % 5 + 1)", platformConfirmed: i <= 4, isEnd: i == 0 || i == names.count - 1)
         }
-        let indicator = StopList.Indicator(place: "Near Tallington", report: "Left Peterborough 10:29", next: "Grantham in 6 min")
+        let indicator = StopList.Indicator(next: .approaching(name: "Grantham"), report: "Left Peterborough 10:29")
         let view = HStack(alignment: .top, spacing: 0) {
             ForEach([false, true], id: \.self) { expanded in
                 ForEach([ColorScheme.light, .dark], id: \.self) { scheme in

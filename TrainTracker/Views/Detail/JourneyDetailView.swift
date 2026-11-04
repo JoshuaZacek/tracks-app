@@ -28,21 +28,17 @@ struct JourneyDetailView: View {
                     let rows = StopRow.rows(for: journey, liveCallingPoints: model.liveCallingPoints, now: now)
                     StopList(
                         rows: rows,
-                        indicator: indicator(train: train, now: now),
+                        indicator: indicator(now: now),
                         trainFraction: trainFraction(rows: rows, now: now)
                     )
-                    if train != nil, let attribution = model.placeIndex?.attribution {
-                        Text("Place names: \(attribution)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
                 }
                 .padding(16)
             }
             .background(Color(.systemGroupedBackground))
         }
         .navigationTitle("\(journey.from.crs) → \(journey.to.crs)")
+        // The operator has no room on the journey card, so it sits under the title here.
+        .navigationSubtitle(journey.operatorName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -84,24 +80,21 @@ struct JourneyDetailView: View {
         return RouteGeometry.legFraction(leg: rows[last].id, liveCallingPoints: model.liveCallingPoints, now: now) ?? 0.5
     }
 
-    /// Between the last stop passed and the next, while the train is on my part of the route.
-    private func indicator(train: CLLocationCoordinate2D?, now: Date) -> StopList.Indicator? {
+    /// Between the last stop passed and the next, while the train is on my part of the
+    /// route: a countdown to the next stop, and the train's last report.
+    private func indicator(now: Date) -> StopList.Indicator? {
         guard let status = model.status, status.state == .departed, let position = status.position else { return nil }
-        let place = train.flatMap { model.placeIndex?.describe(latitude: $0.latitude, longitude: $0.longitude) }
         let verb = switch position.last.event {
         case .arrival: "At"
         case .departure: "Left"
         case .pass: "Passed"
         }
-        var next: String?
-        if let n = position.next {
-            let minutes = Int((n.expectedTime.timeIntervalSince(now) / 60).rounded(.up))
-            next = minutes > 0 ? "\(n.name) in \(JourneyCardModel.duration(minutes))" : "Approaching \(n.name)"
+        let next = position.next.map { n -> StopList.Indicator.Next in
+            n.expectedTime > now ? .countdown(name: n.name, from: now, to: n.expectedTime) : .approaching(name: n.name)
         }
         return StopList.Indicator(
-            place: place ?? "Between \(position.legFrom) and \(position.legTo)",
-            report: "\(verb) \(position.last.name) \(RailTime.hhmm(position.last.time))",
-            next: next
+            next: next,
+            report: "\(verb) \(position.last.name) \(RailTime.hhmm(position.last.time))"
         )
     }
 }

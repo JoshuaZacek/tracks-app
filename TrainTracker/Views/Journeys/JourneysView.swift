@@ -16,7 +16,6 @@ struct JourneysView: View {
     @State private var pastCollapsed = UserDefaults.standard.bool(forKey: "pastCollapsed")
     @State private var addingJourney = false
     @State private var showingSettings = false
-    @State private var actionError: String?
     @State private var path: [UUID] = []
     private let sync = JourneySync.shared
     private let push = PushNotifications.shared
@@ -113,11 +112,6 @@ struct JourneysView: View {
             .onOpenURL { url in
                 guard url.scheme == "traintracker", url.host() == "journey", let id = UUID(uuidString: url.lastPathComponent) else { return }
                 push.journeyToOpen = id
-            }
-            .alert("Couldn't update the journey", isPresented: .constant(actionError != nil)) {
-                Button("OK") { actionError = nil }
-            } message: {
-                Text(actionError ?? "")
             }
             // The server holds the journeys: refresh on opening, on returning to the
             // app, and when the server says the list could next change on its own.
@@ -216,19 +210,6 @@ struct JourneysView: View {
                         Button("Delete", systemImage: "trash", role: .destructive) {
                             Task { await sync.delete(journey, in: context) }
                         }
-                    }
-                    .swipeActions(edge: .leading) {
-                        let archived = journey.archivedAt != nil
-                        Button(archived ? "Restore" : "Archive", systemImage: archived ? "tray.and.arrow.up" : "archivebox") {
-                            Task {
-                                do {
-                                    try await sync.setArchived(!archived, for: journey, in: context)
-                                } catch {
-                                    actionError = error.localizedDescription
-                                }
-                            }
-                        }
-                        .tint(.indigo)
                     }
             }
         }

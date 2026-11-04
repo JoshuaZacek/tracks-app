@@ -12,7 +12,6 @@ final class JourneyDetailModel {
     /// The train's calling points with Darwin's live times; the saved snapshot until loaded.
     private(set) var liveCallingPoints: [CallingPoint]
     private(set) var error: String?
-    private(set) var placeIndex: PlaceIndex?
 
     private let client: TracksClient
 
@@ -24,7 +23,6 @@ final class JourneyDetailModel {
 
     /// Refreshes until cancelled (the screen closing) or the server says nothing more will change.
     func run() async {
-        placeIndex = await PlacesStore.shared.placeIndex()
         while !Task.isCancelled {
             let next = await refresh()
             guard let next else { return }

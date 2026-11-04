@@ -75,16 +75,6 @@ final class JourneySync {
         }
     }
 
-    func setArchived(_ archived: Bool, for journey: Journey, in context: ModelContext) async throws {
-        let server = try await client.updateJourney(id: journey.id, UpdateJourneyRequest(archived: archived))
-        journey.archivedAt = server.archivedAt
-        journey.live = LiveSummary(server.live)
-        journey.syncedAt = .now
-        try? context.save()
-        // Archived journeys don't update, so their activity would only go stale.
-        if archived { await LiveActivities.shared.end(journeyID: journey.id) }
-    }
-
     /// Sets the journey's own alert settings (nil fields follow the device's).
     func setPrefs(_ prefs: JourneyPrefs, for journey: Journey, in context: ModelContext) async throws {
         let server = try await client.updateJourney(id: journey.id, UpdateJourneyRequest(prefs: prefs.replacingAll))
