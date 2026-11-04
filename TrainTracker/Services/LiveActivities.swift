@@ -225,7 +225,7 @@ final class LiveActivities {
         if departed {
             platform = journey.to.bookedPlatform.map { .init(number: $0, confirmed: false) }
         } else if let p = live?.platform {
-            platform = .init(number: p.number, confirmed: p.confirmed)
+            platform = .init(number: p.number, confirmed: p.confirmed, hidden: p.hidden)
         } else {
             platform = journey.from.bookedPlatform.map { .init(number: $0, confirmed: false) }
         }

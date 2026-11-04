@@ -173,7 +173,30 @@ nonisolated struct Platform: Codable, Hashable, Sendable {
     enum Source: String, Codable, Sendable { case booked, live }
     var number: String
     var source: Source
+    /// Signalling or staff confirmed the train is in it. Only some stations ever
+    /// send this (Waterloo and Leeds never do), so unconfirmed isn't unreliable.
     var confirmed: Bool
+    /// Darwin knows it but the station hasn't announced it yet (e.g. Euston keeps
+    /// platforms off its boards until boarding).
+    var hidden: Bool
+
+    init(number: String, source: Source, confirmed: Bool, hidden: Bool = false) {
+        self.number = number
+        self.source = source
+        self.confirmed = confirmed
+        self.hidden = hidden
+    }
+
+    private enum CodingKeys: String, CodingKey { case number, source, confirmed, hidden }
+
+    // `hidden` is missing from responses cached before the server sent it.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        number = try c.decode(String.self, forKey: .number)
+        source = try c.decode(Source.self, forKey: .source)
+        confirmed = try c.decode(Bool.self, forKey: .confirmed)
+        hidden = try c.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
+    }
 }
 
 nonisolated struct LiveDepartureInfo: Codable, Hashable, Sendable {

@@ -37,7 +37,9 @@ struct JourneyCardModel: Equatable {
         let booked = journey.from.bookedPlatform
         if let livePlatform = live?.platform {
             platform = livePlatform.number
-            if let booked, booked != livePlatform.number {
+            if livePlatform.hidden {
+                platformKind = .notAnnounced(changedFrom: booked != livePlatform.number ? booked : nil)
+            } else if let booked, booked != livePlatform.number {
                 platformKind = .changed(from: booked, confirmed: livePlatform.confirmed)
             } else {
                 platformKind = .live(confirmed: livePlatform.confirmed)

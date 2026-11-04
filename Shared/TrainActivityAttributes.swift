@@ -34,6 +34,23 @@ nonisolated struct TrainActivityAttributes: ActivityAttributes, Sendable {
         struct Platform: Codable, Hashable, Sendable {
             var number: String
             var confirmed: Bool
+            /// Known to Darwin, not yet announced at the station.
+            var hidden: Bool
+
+            init(number: String, confirmed: Bool, hidden: Bool = false) {
+                self.number = number
+                self.confirmed = confirmed
+                self.hidden = hidden
+            }
+
+            private enum CodingKeys: String, CodingKey { case number, confirmed, hidden }
+
+            init(from decoder: any Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                number = try c.decode(String.self, forKey: .number)
+                confirmed = try c.decodeIfPresent(Bool.self, forKey: .confirmed) ?? false
+                hidden = try c.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
+            }
         }
 
         var state: Phase
