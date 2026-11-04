@@ -8,6 +8,9 @@ struct JourneysView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @State private var search = ""
+    /// The filter button shows the search field; cancelling it hides the field again.
+    @State private var filtering = false
+    @State private var searching = false
     @State private var addingJourney = false
     @State private var showingSettings = false
     @State private var actionError: String?
@@ -30,15 +33,16 @@ struct JourneysView: View {
                         emptyState
                     }
                     if !sections.live.isEmpty {
-                        sectionTitle("Live", liveDot: true)
-                        groups(sections.live, now: timeline.date)
+                        // With no day heading, the cards need a little more room under "Live".
+                        sectionTitle("Live", liveDot: true, first: true, bottom: sections.liveShowsDays ? 2 : 10)
+                        groups(sections.live, now: timeline.date, dayLabels: sections.liveShowsDays)
                     }
                     if !sections.upcoming.isEmpty {
-                        sectionTitle("Upcoming")
+                        sectionTitle("Upcoming", first: sections.live.isEmpty)
                         groups(sections.upcoming, now: timeline.date)
                     }
                     if !sections.past.isEmpty {
-                        sectionTitle("Complete")
+                        sectionTitle("Complete", first: sections.live.isEmpty && sections.upcoming.isEmpty)
                         groups(sections.past, now: timeline.date, dimmed: true)
                     }
                 }
@@ -48,25 +52,36 @@ struct JourneysView: View {
                 .background(Color(.systemGroupedBackground))
                 .refreshable { await sync.refresh(in: context) }
             }
+            // No visible title; "Journeys" still names the screen for VoiceOver.
             .navigationTitle("Journeys")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(removing: .title)
             .navigationDestination(for: UUID.self) { id in
                 if let journey = journeys.first(where: { $0.id == id }) {
                     JourneyDetailView(journey: journey)
                 }
             }
-            .searchable(text: $search, prompt: "Station, headcode or operator")
-            .searchToolbarBehavior(.minimize)
+            .modifier(FilterField(shown: filtering, text: $search, isPresented: $searching))
+            .onChange(of: searching) { _, active in
+                if !active { filtering = false }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Settings", systemImage: "gearshape") { showingSettings = true }
+                    Button("Filter", systemImage: "line.3.horizontal.decrease") {
+                        filtering = true
+                        searching = true
+                    }
+                    .accessibilityIdentifier("filter")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Settings", systemImage: "ellipsis") { showingSettings = true }
                         .accessibilityIdentifier("settings")
                 }
+                ToolbarSpacer(.flexible, placement: .bottomBar)
                 ToolbarItem(placement: .bottomBar) {
                     Button("Add journey", systemImage: "plus") { addingJourney = true }
                         .buttonStyle(.glassProminent)
                 }
-                ToolbarSpacer(.flexible, placement: .bottomBar)
-                DefaultToolbarItem(kind: .search, placement: .bottomBar)
             }
             .sheet(isPresented: $addingJourney) {
                 AddJourneyView()
@@ -125,7 +140,8 @@ struct JourneysView: View {
             .accessibilityHint(message)
     }
 
-    private func sectionTitle(_ title: String, liveDot: Bool = false) -> some View {
+    /// `first`: the top section sits close under the toolbar; later ones get a gap above.
+    private func sectionTitle(_ title: String, liveDot: Bool = false, first: Bool = false, bottom: CGFloat = 2) -> some View {
         HStack(spacing: 10) {
             if liveDot {
                 Circle().fill(.tint).frame(width: 12, height: 12)
@@ -133,7 +149,7 @@ struct JourneysView: View {
             }
             Text(title).font(.title2.bold())
         }
-        .listRowInsets(EdgeInsets(top: 22, leading: 20, bottom: 2, trailing: 20))
+        .listRowInsets(EdgeInsets(top: first ? 4 : 22, leading: 20, bottom: bottom, trailing: 20))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .accessibilityAddTraits(.isHeader)
@@ -141,15 +157,18 @@ struct JourneysView: View {
 
     @ViewBuilder
     /// `dimmed`: finished journeys, faded like a disabled control (still tappable).
-    private func groups(_ groups: [JourneyGroup], now: Date, dimmed: Bool = false) -> some View {
+    /// `dayLabels`: false hides the day headings (Live, when every trip is today's).
+    private func groups(_ groups: [JourneyGroup], now: Date, dayLabels: Bool = true, dimmed: Bool = false) -> some View {
         ForEach(groups) { group in
-            Text(group.label)
-                .font(.headline.weight(.regular))
-                .foregroundStyle(.secondary)
-                .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 4, trailing: 20))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .accessibilityAddTraits(.isHeader)
+            if dayLabels {
+                Text(group.label)
+                    .font(.headline.weight(.regular))
+                    .foregroundStyle(.secondary)
+                    .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 4, trailing: 20))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .accessibilityAddTraits(.isHeader)
+            }
             ForEach(group.journeys) { journey in
                 JourneyCard(journey: journey, now: now)
                     .completeStyle(dimmed)
@@ -201,6 +220,21 @@ struct JourneysView: View {
         }
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
+    }
+}
+
+/// The journey filter's search field, there only while filtering.
+private struct FilterField: ViewModifier {
+    let shown: Bool
+    @Binding var text: String
+    @Binding var isPresented: Bool
+
+    func body(content: Content) -> some View {
+        if shown {
+            content.searchable(text: $text, isPresented: $isPresented, prompt: "Station, headcode or operator")
+        } else {
+            content
+        }
     }
 }
 

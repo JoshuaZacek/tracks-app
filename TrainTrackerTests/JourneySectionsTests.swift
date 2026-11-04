@@ -41,6 +41,20 @@ struct JourneySectionsTests {
         #expect(JourneySections.section(of: journey("11:00", arrives: "13:00"), status: status(.arrived), now: now) == .past)
     }
 
+    @Test func liveDayHeadingsOnlyWhenATripCrossesMidnight() {
+        // Two trips under way, both today: no headings.
+        #expect(!JourneySections(journeys: [journey("11:00", arrives: "13:00"), journey("12:30")], now: now).liveShowsDays)
+        // Departed yesterday at 23:00, still running after midnight.
+        let lateNight = RailTime.date("2026-11-02", at: "00:20")!
+        #expect(JourneySections(journeys: [journey("23:00", arrives: "01:00", date: "2026-11-01")], now: lateNight).liveShowsDays)
+        // Leaves today, arrives tomorrow.
+        let evening = RailTime.date("2026-11-02", at: "22:30")!
+        #expect(JourneySections(journeys: [journey("22:00", arrives: "06:00")], now: evening).liveShowsDays)
+        // Leaving soon, but after midnight.
+        let nearMidnight = RailTime.date("2026-11-02", at: "23:40")!
+        #expect(JourneySections(journeys: [journey("00:10", date: "2026-11-03")], now: nearMidnight).liveShowsDays)
+    }
+
     @Test func groupsByDayInOrder() {
         let sections = JourneySections(
             journeys: [
@@ -53,7 +67,7 @@ struct JourneySectionsTests {
             ],
             now: now
         )
-        #expect(sections.upcoming.map(\.label) == ["Today", "Tomorrow", "Friday"])
+        #expect(sections.upcoming.map(\.label) == ["Today", "Tomorrow", "Fri Nov 6"])
         #expect(sections.upcoming.last?.journeys.map { RailTime.hhmm($0.departsAt) } == ["13:31", "19:02"])
         // Past: most recent first.
         #expect(sections.past.first?.journeys.map { RailTime.hhmm($0.departsAt) } == ["09:00", "06:00"])

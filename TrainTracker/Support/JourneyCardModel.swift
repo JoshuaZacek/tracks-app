@@ -71,8 +71,10 @@ struct JourneyCardModel: Equatable {
         Int((date.timeIntervalSince(now) / 60).rounded(.up))
     }
 
-    /// "43 min", "1 h 05 min".
+    /// "43 min", "1 h 05 min", and "1 h" on the hour.
     static func duration(_ minutes: Int) -> String {
-        minutes < 60 ? "\(minutes) min" : String(format: "%d h %02d min", minutes / 60, minutes % 60)
+        if minutes < 60 { return "\(minutes) min" }
+        if minutes % 60 == 0 { return "\(minutes / 60) h" }
+        return String(format: "%d h %02d min", minutes / 60, minutes % 60)
     }
 }

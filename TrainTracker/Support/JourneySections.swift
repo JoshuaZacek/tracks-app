@@ -4,7 +4,7 @@ enum JourneySection: Equatable {
     case live, upcoming, past
 }
 
-/// Journeys under one day heading ("Today", "Friday", ...).
+/// Journeys under one day heading ("Today", "Fri Nov 6", ...).
 struct JourneyGroup: Identifiable {
     let label: String
     let journeys: [Journey]
@@ -16,6 +16,9 @@ struct JourneySections {
     var live: [JourneyGroup] = []
     var upcoming: [JourneyGroup] = []
     var past: [JourneyGroup] = []
+    /// Live's day headings ("Today", "Yesterday") only show when a live trip
+    /// touches another day: overnight, departed yesterday, or leaving after midnight.
+    var liveShowsDays = false
 
     /// "Leaving soon" journeys join Live this long before departure.
     static let leavingSoon: TimeInterval = 60 * 60
@@ -29,7 +32,11 @@ struct JourneySections {
         for j in journeys {
             buckets[Self.section(of: j, status: statuses[j.id], now: now), default: []].append(j)
         }
-        live = Self.group(buckets[.live, default: []].sorted { $0.departsAt < $1.departsAt }, now: now)
+        let liveJourneys = buckets[.live, default: []].sorted { $0.departsAt < $1.departsAt }
+        live = Self.group(liveJourneys, now: now)
+        liveShowsDays = liveJourneys.contains { j in
+            !RailTime.calendar.isDate(j.departsAt, inSameDayAs: now) || !RailTime.calendar.isDate(j.arrivesAt, inSameDayAs: now)
+        }
         upcoming = Self.group(buckets[.upcoming, default: []].sorted { $0.departsAt < $1.departsAt }, now: now)
         past = Self.group(buckets[.past, default: []].sorted { $0.departsAt > $1.departsAt }, now: now)
     }

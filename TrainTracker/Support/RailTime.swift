@@ -41,9 +41,8 @@ nonisolated enum RailTime {
         return withFraction.date(from: s) ?? ISO8601DateFormatter().date(from: s)
     }
 
-    /// Mockup day headings: "Today", "Tomorrow", a weekday within the next six
-    /// days ("Friday"), then "Sat 7 Nov". Earlier days (past journeys) use the
-    /// short date, with "Yesterday" for the day before.
+    /// Day headings: "Yesterday", "Today", "Tomorrow", otherwise the short
+    /// date ("Thu Nov 5").
     static func dayLabel(for date: Date, now: Date = .now) -> String {
         let start = calendar.startOfDay(for: now)
         let day = calendar.startOfDay(for: date)
@@ -52,26 +51,16 @@ nonisolated enum RailTime {
         case 0: return "Today"
         case 1: return "Tomorrow"
         case -1: return "Yesterday"
-        case 2...6: return weekdayFormatter.string(from: date)
         default: return shortDateFormatter.string(from: date)
         }
     }
-
-    private static let weekdayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.calendar = calendar
-        f.timeZone = zone
-        f.locale = Locale(identifier: "en_GB")
-        f.dateFormat = "EEEE"
-        return f
-    }()
 
     private static let shortDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.calendar = calendar
         f.timeZone = zone
         f.locale = Locale(identifier: "en_GB")
-        f.dateFormat = "EEE d MMM"
+        f.dateFormat = "EEE MMM d"
         return f
     }()
 }

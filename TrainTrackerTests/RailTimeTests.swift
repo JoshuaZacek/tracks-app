@@ -23,11 +23,11 @@ struct RailTimeTests {
     @Test(arguments: [
         ("2026-11-02", "23:59", "Today"),
         ("2026-11-03", "00:15", "Tomorrow"),
-        ("2026-11-05", "13:31", "Thursday"),
-        ("2026-11-08", "09:30", "Sunday"),
-        ("2026-11-09", "09:30", "Mon 9 Nov"),
+        ("2026-11-05", "13:31", "Thu Nov 5"),
+        ("2026-11-08", "09:30", "Sun Nov 8"),
+        ("2026-11-09", "09:30", "Mon Nov 9"),
         ("2026-11-01", "18:00", "Yesterday"),
-        ("2026-10-30", "18:00", "Fri 30 Oct"),
+        ("2026-10-30", "18:00", "Fri Oct 30"),
     ])
     func dayLabels(ymd: String, hhmm: String, expected: String) {
         #expect(RailTime.dayLabel(for: RailTime.date(ymd, at: hhmm)!, now: now) == expected)

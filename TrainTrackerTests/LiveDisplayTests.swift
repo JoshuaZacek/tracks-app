@@ -36,6 +36,13 @@ struct LiveDisplayTests {
         #expect(m.timeTone == .normal)
     }
 
+    @Test func wholeHoursDropTheMinutes() {
+        #expect(JourneyCardModel.duration(59) == "59 min")
+        #expect(JourneyCardModel.duration(60) == "1 h")
+        #expect(JourneyCardModel.duration(61) == "1 h 01 min")
+        #expect(JourneyCardModel.duration(120) == "2 h")
+    }
+
     @Test func leavingSoonCountsDownToTheExpectedDeparture() {
         #expect(JourneyCardModel(journey: journey(live(.live, dep: "08:30")), now: at("08:18")).status == "leaves in 12 min")
         let late = JourneyCardModel(journey: journey(live(.live, dep: "08:41", delay: 11)), now: at("08:30"))
