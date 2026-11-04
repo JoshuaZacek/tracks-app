@@ -23,7 +23,7 @@ struct CardRenderTests {
             ForEach([ColorScheme.light, .dark], id: \.self) { scheme in
                 VStack(spacing: 12) {
                     ForEach(journeys) { JourneyCard(journey: $0, now: now) }
-                    // As in the Complete section.
+                    // As in the Past section.
                     JourneyCard(journey: journeys[2], now: now).completeStyle()
                     HStack {
                         PlatformBadge(number: "3")

@@ -11,6 +11,9 @@ struct JourneysView: View {
     /// The search button shows the search field; cancelling it hides the field again.
     @State private var filtering = false
     @State private var searching = false
+    /// Past journeys can be folded away; remembered between launches. Toggled through
+    /// @State, since an @AppStorage change drops withAnimation's transaction.
+    @State private var pastCollapsed = UserDefaults.standard.bool(forKey: "pastCollapsed")
     @State private var addingJourney = false
     @State private var showingSettings = false
     @State private var actionError: String?
@@ -42,8 +45,16 @@ struct JourneysView: View {
                         groups(sections.upcoming, now: timeline.date)
                     }
                     if !sections.past.isEmpty {
-                        sectionTitle("Complete", first: sections.live.isEmpty && sections.upcoming.isEmpty)
-                        groups(sections.past, now: timeline.date, dimmed: true)
+                        // Searching always shows matching past journeys, folded or not.
+                        let showPast = !pastCollapsed || !search.isEmpty
+                        sectionTitle("Past", first: sections.live.isEmpty && sections.upcoming.isEmpty,
+                                     collapsed: search.isEmpty ? pastCollapsed : nil) {
+                            // The list's own row insert/remove, as for Add train's departed trains.
+                            withAnimation(.snappy) { pastCollapsed.toggle() }
+                        }
+                        if showPast {
+                            groups(sections.past, now: timeline.date, dimmed: true)
+                        }
                     }
                 }
                 .listStyle(.plain)
@@ -62,8 +73,14 @@ struct JourneysView: View {
                 }
             }
             .modifier(FilterField(shown: filtering, text: $search, isPresented: $searching))
+            .onChange(of: pastCollapsed) { _, collapsed in
+                UserDefaults.standard.set(collapsed, forKey: "pastCollapsed")
+            }
             .onChange(of: searching) { _, active in
-                if !active { filtering = false }
+                if !active {
+                    filtering = false
+                    search = ""
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -141,14 +158,29 @@ struct JourneysView: View {
     }
 
     /// `first`: the top section sits close under the toolbar; later ones get a gap above.
-    private func sectionTitle(_ title: String, liveDot: Bool = false, first: Bool = false, bottom: CGFloat = 2) -> some View {
+    /// `collapsed`: non-nil makes the title a button that folds the section, with a chevron.
+    private func sectionTitle(_ title: String, liveDot: Bool = false, first: Bool = false, bottom: CGFloat = 2,
+                              collapsed: Bool? = nil, toggle: @escaping () -> Void = {}) -> some View {
         HStack(spacing: 10) {
             if liveDot {
                 Circle().fill(.tint).frame(width: 12, height: 12)
                     .background { PulsingHalo() }
             }
-            Text(title).font(.title2.bold())
+            HStack(spacing: 5) {
+                Text(title).font(.title2.bold())
+                if let collapsed {
+                    Image(systemName: "chevron.down")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(collapsed ? -90 : 0))
+                }
+            }
+            if collapsed != nil { Spacer() }
         }
+        .contentShape(Rectangle())
+        .onTapGesture { if collapsed != nil { toggle() } }
+        .accessibilityAction { if collapsed != nil { toggle() } }
+        .accessibilityValue(collapsed.map { $0 ? "Collapsed" : "Expanded" } ?? "")
         .listRowInsets(EdgeInsets(top: first ? 4 : 22, leading: 20, bottom: bottom, trailing: 20))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
