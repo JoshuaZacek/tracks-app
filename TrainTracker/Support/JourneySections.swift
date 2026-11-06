@@ -4,11 +4,45 @@ enum JourneySection: Equatable {
     case live, upcoming, past
 }
 
+/// One card on the Journeys screen: a journey on its own, or the legs of a trip
+/// (a journey with changes) in travelling order.
+struct JourneyEntry: Identifiable {
+    let legs: [Journey]
+    var id: UUID { legs[0].id }
+    var first: Journey { legs[0] }
+    var last: Journey { legs[legs.count - 1] }
+    var isTrip: Bool { legs.count > 1 }
+    /// The trip's id, for a card of several legs.
+    var tripID: UUID? { isTrip ? first.trip?.id : nil }
+
+    /// Journeys grouped into cards: the legs of a trip together (when more than one
+    /// of them is here, e.g. not filtered out), everything else on its own.
+    static func entries(_ journeys: [Journey]) -> [JourneyEntry] {
+        var byTrip: [UUID: [Journey]] = [:]
+        for j in journeys {
+            if let trip = j.trip { byTrip[trip.id, default: []].append(j) }
+        }
+        var seen: Set<UUID> = []
+        var entries: [JourneyEntry] = []
+        for j in journeys {
+            if let trip = j.trip, let legs = byTrip[trip.id], legs.count > 1 {
+                guard seen.insert(trip.id).inserted else { continue }
+                entries.append(JourneyEntry(legs: legs.sorted { ($0.trip?.leg ?? 0, $0.departsAt) < ($1.trip?.leg ?? 0, $1.departsAt) }))
+            } else {
+                entries.append(JourneyEntry(legs: [j]))
+            }
+        }
+        return entries
+    }
+}
+
 /// Journeys under one day heading ("Today", "Fri Nov 6", ...).
 struct JourneyGroup: Identifiable {
     let label: String
-    let journeys: [Journey]
+    let entries: [JourneyEntry]
     var id: String { label }
+    /// Every journey, the legs of a trip in order.
+    var journeys: [Journey] { entries.flatMap(\.legs) }
 }
 
 /// The Journeys screen's sections, each grouped by the day I depart.
@@ -28,17 +62,25 @@ struct JourneySections {
     private static let stillRunning: Set<LiveState> = [.live, .departed]
 
     init(journeys: [Journey], statuses: [UUID: LiveSummary] = [:], now: Date = .now) {
-        var buckets: [JourneySection: [Journey]] = [:]
-        for j in journeys {
-            buckets[Self.section(of: j, status: statuses[j.id], now: now), default: []].append(j)
+        var buckets: [JourneySection: [JourneyEntry]] = [:]
+        for entry in JourneyEntry.entries(journeys) {
+            buckets[Self.section(of: entry, statuses: statuses, now: now), default: []].append(entry)
         }
-        let liveJourneys = buckets[.live, default: []].sorted { $0.departsAt < $1.departsAt }
-        live = Self.group(liveJourneys, now: now)
-        liveShowsDays = liveJourneys.contains { j in
-            !RailTime.calendar.isDate(j.departsAt, inSameDayAs: now) || !RailTime.calendar.isDate(j.arrivesAt, inSameDayAs: now)
+        let liveEntries = buckets[.live, default: []].sorted { $0.first.departsAt < $1.first.departsAt }
+        live = Self.group(liveEntries, now: now)
+        liveShowsDays = liveEntries.contains { e in
+            !RailTime.calendar.isDate(e.first.departsAt, inSameDayAs: now) || !RailTime.calendar.isDate(e.last.arrivesAt, inSameDayAs: now)
         }
-        upcoming = Self.group(buckets[.upcoming, default: []].sorted { $0.departsAt < $1.departsAt }, now: now)
-        past = Self.group(buckets[.past, default: []].sorted { $0.departsAt > $1.departsAt }, now: now)
+        upcoming = Self.group(buckets[.upcoming, default: []].sorted { $0.first.departsAt < $1.first.departsAt }, now: now)
+        past = Self.group(buckets[.past, default: []].sorted { $0.first.departsAt > $1.first.departsAt }, now: now)
+    }
+
+    /// A trip is live while any of its trains is, past once all of them are, else upcoming.
+    static func section(of entry: JourneyEntry, statuses: [UUID: LiveSummary], now: Date) -> JourneySection {
+        let sections = entry.legs.map { section(of: $0, status: statuses[$0.id], now: now) }
+        if sections.contains(.live) { return .live }
+        if sections.allSatisfy({ $0 == .past }) { return .past }
+        return .upcoming
     }
 
     var isEmpty: Bool { live.isEmpty && upcoming.isEmpty && past.isEmpty }
@@ -62,14 +104,15 @@ struct JourneySections {
         return .upcoming
     }
 
-    private static func group(_ journeys: [Journey], now: Date) -> [JourneyGroup] {
+    /// By the day the (first) train leaves.
+    private static func group(_ entries: [JourneyEntry], now: Date) -> [JourneyGroup] {
         var groups: [JourneyGroup] = []
-        for j in journeys {
-            let label = RailTime.dayLabel(for: j.departsAt, now: now)
+        for e in entries {
+            let label = RailTime.dayLabel(for: e.first.departsAt, now: now)
             if let last = groups.last, last.label == label {
-                groups[groups.count - 1] = JourneyGroup(label: label, journeys: last.journeys + [j])
+                groups[groups.count - 1] = JourneyGroup(label: label, entries: last.entries + [e])
             } else {
-                groups.append(JourneyGroup(label: label, journeys: [j]))
+                groups.append(JourneyGroup(label: label, entries: [e]))
             }
         }
         return groups

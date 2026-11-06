@@ -163,6 +163,30 @@ final class TracksClient {
         let _: Empty = try await request("DELETE", "/v1/journey-templates/\(id.uuidString.lowercased())")
     }
 
+    // MARK: - Trips
+
+    /// Links journeys (in travelling order) into a trip; the server then follows each change.
+    /// To add a connecting train, send every leg plus the new one. Errors: `not_connected`.
+    func createTrip(journeyIDs: [UUID]) async throws -> Trip {
+        try await request("POST", "/v1/trips", body: CreateTripRequest(journeyIds: journeyIDs))
+    }
+
+    /// Each leg with its live status, and each change with alternatives when it's at risk or missed.
+    func trip(id: UUID) async throws -> Trip {
+        try await request("GET", "/v1/trips/\(id.uuidString.lowercased())")
+    }
+
+    /// Switches leg `leg` (1 = the first train) to another train between the same
+    /// stations. The server deletes the old leg's journey.
+    func replaceTripLeg(tripID id: UUID, leg: Int, _ body: ReplaceLegRequest) async throws -> Trip {
+        try await request("PUT", "/v1/trips/\(id.uuidString.lowercased())/legs/\(leg)", body: body)
+    }
+
+    /// Unlinks the trip; its journeys stay, each on its own.
+    func deleteTrip(id: UUID) async throws {
+        let _: Empty = try await request("DELETE", "/v1/trips/\(id.uuidString.lowercased())")
+    }
+
     /// Starts (or resumes) server pushes to a Live Activity for this journey,
     /// whoever started it. Send again whenever the token rotates.
     func registerLiveActivity(journeyID id: UUID, pushToken: String) async throws {

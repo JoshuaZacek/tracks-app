@@ -20,6 +20,8 @@ struct JourneysView: View {
     /// A journey from a regular journey, being deleted: skip it or stop repeating?
     @State private var deletingRegular: Journey?
     @State private var deleteError: String?
+    /// A trip being deleted: all its trains, or just unlink them?
+    @State private var deletingTrip: JourneyEntry?
     private let sync = JourneySync.shared
     private let push = PushNotifications.shared
 
@@ -70,8 +72,13 @@ struct JourneysView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(removing: .title)
             .navigationDestination(for: UUID.self) { id in
+                // A leg of a trip opens the whole trip (a connection alert names the arriving leg).
                 if let journey = journeys.first(where: { $0.id == id }) {
-                    JourneyDetailView(journey: journey)
+                    if let tripID = journey.trip?.id, journeys.count(where: { $0.trip?.id == tripID }) > 1 {
+                        TripDetailView(tripID: tripID)
+                    } else {
+                        JourneyDetailView(journey: journey)
+                    }
                 }
             }
             .modifier(FilterField(shown: filtering, text: $search, isPresented: $searching))
@@ -130,6 +137,22 @@ struct JourneysView: View {
                 }
             } message: { _ in
                 Text("Skip just this one, or stop adding it. Journeys already added stay.")
+            }
+            .confirmationDialog("This journey has a change", isPresented: Binding(
+                get: { deletingTrip != nil },
+                set: { if !$0 { deletingTrip = nil } }
+            ), titleVisibility: .visible, presenting: deletingTrip) { entry in
+                Button(entry.legs.count == 2 ? "Delete both trains" : "Delete all \(entry.legs.count) trains", role: .destructive) {
+                    Task {
+                        for leg in entry.legs { await sync.delete(leg, in: context) }
+                    }
+                }
+                Button("Unlink, keep the trains") {
+                    guard let tripID = entry.tripID else { return }
+                    Task { try? await sync.unlink(tripID: tripID, in: context) }
+                }
+            } message: { _ in
+                Text("Delete every train of this journey, or keep them saved, each on its own.")
             }
             .alert("Couldn't stop repeating", isPresented: Binding(
                 get: { deleteError != nil },
@@ -235,31 +258,47 @@ struct JourneysView: View {
                     .listRowBackground(Color.clear)
                     .accessibilityAddTraits(.isHeader)
             }
-            ForEach(group.journeys) { journey in
-                JourneyCard(journey: journey, now: now)
-                    .completeStyle(dimmed)
-                    // Tapping opens the journey; a hidden link keeps the card free of a disclosure chevron.
-                    .background {
-                        NavigationLink(value: journey.id) { EmptyView() }
-                            .opacity(0)
-                    }
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                    .swipeActions {
-                        // A regular journey's asks first, so its row mustn't slide away yet (as destructive ones do).
-                        let regular = journey.templateId != nil
-                        Button("Delete", systemImage: "trash", role: regular ? nil : .destructive) {
-                            if regular {
-                                deletingRegular = journey
-                            } else {
-                                Task { await sync.delete(journey, in: context) }
-                            }
+            ForEach(group.entries) { entry in
+                if entry.isTrip {
+                    // The trains of a trip as one card, opening the trip.
+                    cardRow(TripCard(legs: entry.legs, now: now), opens: entry.first.id, dimmed: dimmed)
+                        .swipeActions {
+                            // Asks first, so the row mustn't slide away yet.
+                            Button("Delete", systemImage: "trash") { deletingTrip = entry }
+                                .tint(.red)
                         }
-                        .tint(.red)
-                    }
+                } else {
+                    let journey = entry.first
+                    cardRow(JourneyCard(journey: journey, now: now), opens: journey.id, dimmed: dimmed)
+                        .swipeActions {
+                            // A regular journey's asks first, so its row mustn't slide away yet (as destructive ones do).
+                            let regular = journey.templateId != nil
+                            Button("Delete", systemImage: "trash", role: regular ? nil : .destructive) {
+                                if regular {
+                                    deletingRegular = journey
+                                } else {
+                                    Task { await sync.delete(journey, in: context) }
+                                }
+                            }
+                            .tint(.red)
+                        }
+                }
             }
         }
+    }
+
+    /// A card in the list. Tapping opens the journey (or trip); a hidden link keeps the
+    /// card free of a disclosure chevron.
+    private func cardRow(_ card: some View, opens id: UUID, dimmed: Bool) -> some View {
+        card
+            .completeStyle(dimmed)
+            .background {
+                NavigationLink(value: id) { EmptyView() }
+                    .opacity(0)
+            }
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
     }
 
     @ViewBuilder

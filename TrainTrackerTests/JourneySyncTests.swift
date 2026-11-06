@@ -204,6 +204,68 @@ struct JourneySyncTests {
         try await client.deleteDevice()
     }
 
+    // MARK: - Trips (Sprint 2)
+
+    @Test func linkFollowAndSwitchAConnection() async throws {
+        let client = makeClient()
+        let sync = JourneySync(client: client)
+        let context = try makeContext()
+        let tomorrow = RailTime.ymd(RailTime.calendar.date(byAdding: .day, value: 1, to: .now)!)
+        // King's Cross → Peterborough, then two later trains on to York to choose from.
+        let first = try #require(try await client.departures(from: "KGX", date: tomorrow, to: "PBO", after: "09:00", limit: 1).departures.first)
+        let arrives = try #require(first.arrival?.scheduledArrival)
+        let onward = try await client.departures(from: "PBO", date: tomorrow, to: "YRK", after: RailTime.hhmm(arrives.addingTimeInterval(10 * 60)), limit: 2).departures
+        try #require(onward.count == 2)
+
+        let leg1 = try await sync.save(trainUid: first.trainUid, runDate: first.runDate, fromCrs: "KGX", toCrs: "PBO", in: context)
+        let leg2 = try await sync.save(trainUid: onward[0].trainUid, runDate: onward[0].runDate, fromCrs: "PBO", toCrs: "YRK", in: context)
+        let trip: Trip
+        do {
+            trip = try await sync.addConnection(after: leg1, next: leg2, in: context)
+        } catch let error as TracksError where error.code == .notFound {
+            try await client.deleteDevice()
+            return // a server from before trips
+        }
+        #expect(trip.legs.map(\.id) == [leg1.id, leg2.id])
+        #expect(leg1.trip == TripLink(id: trip.id, leg: 1, legs: 2))
+        #expect(leg2.trip?.leg == 2 && leg2.isLastLeg)
+        #expect(leg1.connection?.station.crs == "PBO")
+        #expect(leg1.connection?.status == .ok)
+        #expect(leg2.connection == nil)
+        #expect(trip.connections.count == 1 && trip.connections[0].alternatives.isEmpty)
+
+        // The list carries the trip, so the cache keeps it after a refresh.
+        await sync.refresh(in: context)
+        #expect(leg1.trip?.id == trip.id && leg1.connection != nil)
+
+        // A train that leaves before the first gets in can't be linked after it.
+        let early = try #require(try await client.departures(from: "PBO", date: tomorrow, to: "YRK", after: "08:00", limit: 1).departures.first)
+        if early.scheduledDeparture < arrives {
+            do {
+                _ = try await client.replaceTripLeg(tripID: trip.id, leg: 2, ReplaceLegRequest(trainUid: early.trainUid, runDate: early.runDate))
+                Issue.record("expected not_connected")
+            } catch let error as TracksError {
+                #expect(error.code == .notConnected)
+            }
+        }
+
+        // "Switch to this train": the second leg becomes the later train; the old journey goes.
+        let switched = try await sync.switchLeg(tripID: trip.id, leg: 2, to: onward[1], in: context)
+        #expect(switched.legs.count == 2)
+        #expect(switched.legs[1].trainUid == onward[1].trainUid)
+        let cached = try context.fetch(FetchDescriptor<Journey>())
+        #expect(!cached.contains { $0.id == leg2.id })
+        #expect(cached.filter { $0.trip?.id == trip.id }.count == 2)
+
+        // Unlinking keeps the trains, each on its own.
+        try await sync.unlink(tripID: trip.id, in: context)
+        #expect(try context.fetch(FetchDescriptor<Journey>()).allSatisfy { $0.trip == nil && $0.connection == nil })
+        await sync.refresh(in: context)
+        #expect(try context.fetch(FetchDescriptor<Journey>()).count == 2)
+        #expect(try context.fetch(FetchDescriptor<Journey>()).allSatisfy { $0.trip == nil })
+        try await client.deleteDevice()
+    }
+
     @Test func devicePrefsHaveTheCommuterAlerts() async throws {
         let client = makeClient()
         var device = try await client.device()

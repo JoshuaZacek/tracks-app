@@ -7,6 +7,7 @@ struct JourneyDetailView: View {
     @State private var model: JourneyDetailModel
     @State private var showingAlerts = false
     @State private var showingRepeat = false
+    @State private var addingConnection = false
 
     init(journey: Journey) {
         _model = State(initialValue: JourneyDetailModel(journey: journey))
@@ -25,12 +26,21 @@ struct JourneyDetailView: View {
                         .frame(height: 300)
                         .clipShape(.rect(cornerRadius: 24, style: .continuous))
                     JourneyCard(journey: journey, now: now)
+                    if journey.trip != nil, journey.connection != nil || !journey.isLastLeg {
+                        ConnectionStrip(connection: journey.connection, station: journey.to.name)
+                    }
                     notes
                     let rows = StopRow.rows(for: journey, liveCallingPoints: model.liveCallingPoints, now: now)
                     StopList(
                         rows: rows,
-                        trainFraction: trainFraction(rows: rows, now: now)
+                        trainFraction: model.trainFraction(rows: rows, now: now)
                     )
+                    if canAddConnection {
+                        Button("Add connecting train", systemImage: "arrow.triangle.branch") { addingConnection = true }
+                            .buttonStyle(.glass)
+                            .controlSize(.large)
+                            .accessibilityIdentifier("addConnection")
+                    }
                 }
                 .padding(16)
             }
@@ -67,6 +77,9 @@ struct JourneyDetailView: View {
                 RepeatJourneyView(journey: journey)
             }
         }
+        .sheet(isPresented: $addingConnection) {
+            AddJourneyView(connectingFrom: journey)
+        }
         .refreshable { await model.refresh() }
         .task { await model.run() }
     }
@@ -87,12 +100,21 @@ struct JourneyDetailView: View {
         }
     }
 
+    /// A connecting train can follow the last train of a trip (or a journey on its own) until it's over.
+    private var canAddConnection: Bool {
+        guard journey.isLastLeg, journey.archivedAt == nil else { return false }
+        if let state = journey.live?.state, [.arrived, .cancelled, .notFound].contains(state) { return false }
+        return journey.expectedArrival > .now
+    }
+}
+
+extension JourneyDetailModel {
     /// How far the train is from the last of my stops it reached to the next, by
     /// time (as on the map); nil unless it's under way on my part of the route.
-    private func trainFraction(rows: [StopRow], now: Date) -> Double? {
-        guard model.status?.state == .departed, let last = rows.lastIndex(where: \.passed), last < rows.count - 1 else { return nil }
+    func trainFraction(rows: [StopRow], now: Date) -> Double? {
+        guard status?.state == .departed, let last = rows.lastIndex(where: \.passed), last < rows.count - 1 else { return nil }
         // Row ids are calling point indexes, and my stops are consecutive calling points.
-        return RouteGeometry.legFraction(leg: rows[last].id, liveCallingPoints: model.liveCallingPoints, now: now) ?? 0.5
+        return RouteGeometry.legFraction(leg: rows[last].id, liveCallingPoints: liveCallingPoints, now: now) ?? 0.5
     }
 }
 

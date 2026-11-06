@@ -7,6 +7,8 @@ import SwiftUI
 struct JourneyCard: View {
     let journey: Journey
     var now: Date = .now
+    /// Inside a trip's card, which draws the background for all its legs.
+    var embedded = false
 
     var body: some View {
         let model = JourneyCardModel(journey: journey, now: now)
@@ -50,7 +52,7 @@ struct JourneyCard: View {
             }
         }
         .padding(14)
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 24, style: .continuous))
+        .background(embedded ? Color.clear : Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 24, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText(model))
         .accessibilityIdentifier("journeyCard")

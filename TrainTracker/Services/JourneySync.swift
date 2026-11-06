@@ -64,6 +64,7 @@ final class JourneySync {
     func delete(_ journey: Journey, in context: ModelContext) async {
         let id = journey.id
         let wasOnServer = journey.syncedAt != nil
+        let inTrip = journey.trip != nil
         context.delete(journey)
         try? context.save()
         await LiveActivities.shared.end(journeyID: id)
@@ -76,7 +77,10 @@ final class JourneySync {
         } catch {
             pendingDeletes.insert(id)
             Logger.tracks.info("Delete of \(id) queued: \(error.localizedDescription)")
+            return
         }
+        // The rest of its trip lost a leg (and maybe the trip): show them as the server has them.
+        if inTrip { await refresh(in: context) }
     }
 
     /// Sets the journey's own alert settings (nil fields follow the device's).
@@ -130,6 +134,82 @@ final class JourneySync {
             }
         }
         await delete(journey, in: context)
+    }
+
+    // MARK: Trips
+
+    /// Links a connecting train after `journey`: the legs of its trip (or `journey`
+    /// alone), then `next`. Returns the trip; the legs here take their new trip and connection.
+    @discardableResult
+    func addConnection(after journey: Journey, next: Journey, in context: ModelContext) async throws -> Trip {
+        try await link(legIDs(of: journey, in: context) + [next.id], in: context)
+    }
+
+    /// Links journeys, in travelling order, into one trip.
+    @discardableResult
+    func link(_ journeyIDs: [UUID], in context: ModelContext) async throws -> Trip {
+        let trip = try await client.createTrip(journeyIDs: journeyIDs)
+        apply(trip, in: context)
+        return trip
+    }
+
+    /// The trip with its connections and alternatives; its legs here are brought up to date.
+    func trip(id: UUID, in context: ModelContext) async throws -> Trip {
+        let trip = try await client.trip(id: id)
+        apply(trip, in: context)
+        return trip
+    }
+
+    /// "Switch to this train": leg `leg` of the trip becomes a journey on `departure`.
+    /// The server deletes the old leg's journey, so its Live Activity and stop alarm go too.
+    @discardableResult
+    func switchLeg(tripID: UUID, leg: Int, to departure: Departure, in context: ModelContext) async throws -> Trip {
+        let old = try context.fetch(FetchDescriptor<Journey>()).first { $0.trip?.id == tripID && $0.trip?.leg == leg }
+        let trip = try await client.replaceTripLeg(tripID: tripID, leg: leg, ReplaceLegRequest(trainUid: departure.trainUid, runDate: departure.runDate))
+        if let old, !trip.legs.contains(where: { $0.id == old.id }) {
+            let id = old.id
+            context.delete(old)
+            await LiveActivities.shared.end(journeyID: id)
+            alarms?.forget(journeyID: id)
+        }
+        apply(trip, in: context)
+        await alarms?.sync((try? context.fetch(FetchDescriptor<Journey>())) ?? [])
+        return trip
+    }
+
+    /// Unlinks a trip: its journeys stay, each on its own.
+    func unlink(tripID: UUID, in context: ModelContext) async throws {
+        do {
+            try await client.deleteTrip(id: tripID)
+        } catch let error as TracksError where error.code == .tripNotFound {
+            // Already gone.
+        }
+        for journey in try context.fetch(FetchDescriptor<Journey>()) where journey.trip?.id == tripID {
+            journey.trip = nil
+            journey.connection = nil
+        }
+        try? context.save()
+    }
+
+    /// The cached legs of `journey`'s trip in order, or just `journey`.
+    func legIDs(of journey: Journey, in context: ModelContext) -> [UUID] {
+        guard let tripID = journey.trip?.id else { return [journey.id] }
+        let legs = ((try? context.fetch(FetchDescriptor<Journey>())) ?? [])
+            .filter { $0.trip?.id == tripID }
+            .sorted { ($0.trip?.leg ?? 0) < ($1.trip?.leg ?? 0) }
+        return legs.isEmpty ? [journey.id] : legs.map(\.id)
+    }
+
+    /// Caches a trip's legs (each carries its trip link and connection).
+    private func apply(_ trip: Trip, in context: ModelContext) {
+        // Journeys here that the server says left this trip (moved, unlinked) are on their own now.
+        let legIDs = Set(trip.legs.map(\.id))
+        for journey in (try? context.fetch(FetchDescriptor<Journey>())) ?? [] where journey.trip?.id == trip.id && !legIDs.contains(journey.id) {
+            journey.trip = nil
+            journey.connection = nil
+        }
+        for leg in trip.legs { upsert(leg, in: context) }
+        try? context.save()
     }
 
     /// Refresh soon, e.g. an alert just arrived.

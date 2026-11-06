@@ -41,10 +41,18 @@ struct JourneyAlertsView: View {
                     choice("Cancellations", \.cancellations, default: device?.cancellations)
                     choice("Departure", \.departure, default: device?.departure)
                     choice("Arrival", \.arrival, default: device?.arrival)
+                    // The change after this train, when it's followed by another in a trip.
+                    if !journey.isLastLeg {
+                        choice("Connection", \.connections, default: device?.connections)
+                    }
                 } header: {
                     Text("Alert me about")
                 } footer: {
-                    Text("“Default” follows Settings, so changing it there changes this journey too.")
+                    if !journey.isLastLeg {
+                        Text("Connection: when the change at \(journey.to.name) is at risk or missed, with the next train, and when it's back on. “Default” follows Settings.")
+                    } else {
+                        Text("“Default” follows Settings, so changing it there changes this journey too.")
+                    }
                 }
                 if let error {
                     Section { Label(error, systemImage: "wifi.slash").foregroundStyle(.secondary) }

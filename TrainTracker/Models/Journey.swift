@@ -40,6 +40,10 @@ final class Journey {
     var templateId: UUID?
     /// Minutes to get to the station, for the leave-now alert.
     var travelMinutes: Int?
+    /// The trip (a journey with changes) this is a leg of; nil on its own.
+    var trip: TripLink?
+    /// The change from this leg to the next of its trip; nil for the last leg, or no trip.
+    var connection: Connection?
 
     init(id: UUID = UUID(), savedAt: Date = .now, date: String, train: TrainDetails, fromIndex: Int, toIndex: Int) {
         self.id = id
@@ -75,6 +79,8 @@ final class Journey {
         self.prefs = server.prefs
         self.templateId = server.templateId
         self.travelMinutes = server.travelMinutes
+        self.trip = server.trip
+        self.connection = server.connection
     }
 
     /// Takes the latest state from a full journey (after a save or change).
@@ -84,6 +90,8 @@ final class Journey {
         prefs = server.prefs
         templateId = server.templateId
         travelMinutes = server.travelMinutes
+        trip = server.trip
+        connection = server.connection
         self.syncedAt = syncedAt
     }
 
@@ -95,6 +103,8 @@ final class Journey {
         prefs = item.prefs
         templateId = item.templateId
         travelMinutes = item.travelMinutes
+        trip = item.trip
+        connection = item.connection
         self.syncedAt = syncedAt
     }
 
@@ -103,6 +113,12 @@ final class Journey {
 
     /// Scheduled arrival at my destination.
     var arrivesAt: Date { to.scheduledArrival ?? to.scheduledDeparture ?? departsAt }
+
+    /// Expected (else scheduled) arrival at my destination, from the last refresh.
+    var expectedArrival: Date { live?.actualArrival ?? live?.expectedArrival ?? arrivesAt }
+
+    /// The last train of its trip, or a journey on its own: a connecting train can follow it.
+    var isLastLeg: Bool { trip.map { $0.leg == $0.legs } ?? true }
 
     /// Calling points between boarding and alighting (exclusive).
     var intermediateStops: Int { max(0, toIndex - fromIndex - 1) }

@@ -120,10 +120,12 @@ struct SettingsView: View {
             Toggle("Cancellations", isOn: prefs.cancellations)
             Toggle("Departure", isOn: prefs.departure)
             Toggle("Arrival", isOn: prefs.arrival)
+            Toggle("Connections", isOn: prefs.connections)
+                .accessibilityIdentifier("connectionsPref")
         } header: {
             Text("Alert me about")
         } footer: {
-            Text("For every journey, unless you change it on the journey. Platform alerts come when the platform is announced or changes; arrival alerts 10 minutes before and on arriving.")
+            Text("For every journey, unless you change it on the journey. Platform alerts come when the platform is announced or changes; arrival alerts 10 minutes before and on arriving; connection alerts when a change between trains is at risk or missed, with the next train.")
         }
         .disabled(!push.authorization.allowsAlerts && push.authorization != .notDetermined)
     }

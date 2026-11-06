@@ -49,8 +49,10 @@ nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
     var morningSummary: Bool
     /// When to set off for the station, for journeys with a travel time.
     var leaveNow: Bool
+    /// When a change between the trains of a trip becomes at risk or missed, and when it's back on.
+    var connections: Bool
 
-    init(delays: Bool, platforms: Bool, cancellations: Bool, departure: Bool, arrival: Bool, delayThresholdMinutes: Int, liveActivity: Bool, morningSummary: Bool = true, leaveNow: Bool = true) {
+    init(delays: Bool, platforms: Bool, cancellations: Bool, departure: Bool, arrival: Bool, delayThresholdMinutes: Int, liveActivity: Bool, morningSummary: Bool = true, leaveNow: Bool = true, connections: Bool = true) {
         self.delays = delays
         self.platforms = platforms
         self.cancellations = cancellations
@@ -60,13 +62,14 @@ nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
         self.liveActivity = liveActivity
         self.morningSummary = morningSummary
         self.leaveNow = leaveNow
+        self.connections = connections
     }
 
     private enum CodingKeys: String, CodingKey {
-        case delays, platforms, cancellations, departure, arrival, delayThresholdMinutes, liveActivity, morningSummary, leaveNow
+        case delays, platforms, cancellations, departure, arrival, delayThresholdMinutes, liveActivity, morningSummary, leaveNow, connections
     }
 
-    // Servers from before regular journeys don't send the last two: both default to on.
+    // Servers from before regular journeys and trips don't send the last three: all default to on.
     init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         delays = try c.decode(Bool.self, forKey: .delays)
@@ -78,6 +81,7 @@ nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
         liveActivity = try c.decode(Bool.self, forKey: .liveActivity)
         morningSummary = try c.decodeIfPresent(Bool.self, forKey: .morningSummary) ?? true
         leaveNow = try c.decodeIfPresent(Bool.self, forKey: .leaveNow) ?? true
+        connections = try c.decodeIfPresent(Bool.self, forKey: .connections) ?? true
     }
 
     static let thresholdRange = 1...60
@@ -149,6 +153,8 @@ nonisolated struct TracksError: LocalizedError, Sendable {
         case trainNotRunning = "train_not_running"
         case journeyNotFound = "journey_not_found"
         case templateNotFound = "template_not_found"
+        case tripNotFound = "trip_not_found"
+        case notConnected = "not_connected"
         case stationNotOnRoute = "station_not_on_route"
         case scheduleNotLoaded = "schedule_not_loaded"
         case rateLimited = "rate_limited"
@@ -360,6 +366,8 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
     var stopAlarm: Bool?
     var morningSummary: Bool?
     var leaveNow: Bool?
+    /// Alerts about the change after this leg of a trip.
+    var connections: Bool?
 
     /// What applies to the journey: its own setting where it has one, else the device's.
     func applied(over device: NotificationPrefs) -> NotificationPrefs {
@@ -372,7 +380,8 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
             delayThresholdMinutes: delayThresholdMinutes ?? device.delayThresholdMinutes,
             liveActivity: liveActivity ?? device.liveActivity,
             morningSummary: morningSummary ?? device.morningSummary,
-            leaveNow: leaveNow ?? device.leaveNow
+            leaveNow: leaveNow ?? device.leaveNow,
+            connections: connections ?? device.connections
         )
     }
 
@@ -385,7 +394,8 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
             departure: n(departure), arrival: n(arrival),
             delayThresholdMinutes: n(delayThresholdMinutes), liveActivity: n(liveActivity),
             stopAlarm: n(stopAlarm),
-            morningSummary: n(morningSummary), leaveNow: n(leaveNow)
+            morningSummary: n(morningSummary), leaveNow: n(leaveNow),
+            connections: n(connections)
         )
     }
 }
@@ -403,6 +413,7 @@ nonisolated struct JourneyPrefsUpdate: Encodable, Sendable {
     var stopAlarm: Nullable<Bool>?
     var morningSummary: Nullable<Bool>?
     var leaveNow: Nullable<Bool>?
+    var connections: Nullable<Bool>?
 }
 
 /// PUT /v1/journeys/{id}/live-activity.
@@ -446,6 +457,10 @@ nonisolated struct ServerJourney: Decodable, Sendable {
     var templateId: UUID?
     /// Minutes to get to the station, for the leave-now alert.
     var travelMinutes: Int?
+    /// The trip (a journey with changes) this is a leg of.
+    var trip: TripLink?
+    /// The change from this leg to the next; nil for the last leg, or no trip.
+    var connection: Connection?
     var createdAt: Date
     var archivedAt: Date?
     var callingPoints: [CallingPoint]
@@ -471,6 +486,8 @@ nonisolated struct JourneyListItem: Decodable, Sendable {
     var prefs: JourneyPrefs
     var templateId: UUID?
     var travelMinutes: Int?
+    var trip: TripLink?
+    var connection: Connection?
     var createdAt: Date
     var archivedAt: Date?
     var live: LiveSummary
@@ -646,4 +663,99 @@ nonisolated struct LiveStatus: Codable, Hashable, Sendable {
     var service: LiveService?
     var progress: JourneyProgress?
     var position: TrainPosition?
+}
+
+// MARK: - Trips (Sprint 2)
+
+/// How a change between two trains of a trip looks, from the best times known.
+nonisolated enum ConnectionStatus: String, Codable, Sendable {
+    /// At least 3 min to spare after the minimum change time.
+    case ok
+    /// Makes the minimum change time, with under 3 min to spare.
+    case tight
+    /// The next train leaves after I arrive, but with less than the minimum change time.
+    case atRisk = "at_risk"
+    /// The next train leaves before I arrive, or either train is cancelled.
+    case missed
+}
+
+/// The change from one leg of a trip to the next.
+nonisolated struct Connection: Codable, Hashable, Sendable {
+    /// The leg arriving at the change station (1 = the first train).
+    var leg: Int
+    /// Where I change trains.
+    var station: Station
+    var status: ConnectionStatus
+    /// "8 min to change", "The 17:55 is cancelled".
+    var message: String
+    /// This leg at the change station: actual, else expected, else scheduled.
+    var arrival: Date
+    var arrivalPlatform: Platform?
+    /// The next leg leaving the change station: actual, else expected, else scheduled.
+    var departure: Date
+    var departurePlatform: Platform?
+    var minimumChangeMinutes: Int
+    /// Minutes to spare after the minimum change time (negative: short); nil when a train is cancelled.
+    var marginMinutes: Int?
+    var scheduledMarginMinutes: Int
+    var cancelled: Bool
+}
+
+/// Which trip a journey is a leg of.
+nonisolated struct TripLink: Codable, Hashable, Sendable {
+    var id: UUID
+    /// 1 for the first train.
+    var leg: Int
+    /// Trains in the trip.
+    var legs: Int
+}
+
+/// A connection with the later trains to switch to when it's at risk or missed.
+nonisolated struct TripConnection: Decodable, Sendable {
+    var connection: Connection
+    /// Later trains from the change station to the next leg's destination that
+    /// can still be made, soonest first (`arrival` is at that destination). Empty
+    /// unless the connection is at risk or missed.
+    var alternatives: [Departure]
+
+    private enum CodingKeys: String, CodingKey { case alternatives }
+
+    init(connection: Connection, alternatives: [Departure]) {
+        self.connection = connection
+        self.alternatives = alternatives
+    }
+
+    // The server sends the connection's fields and `alternatives` side by side.
+    init(from decoder: any Decoder) throws {
+        connection = try Connection(from: decoder)
+        alternatives = try decoder.container(keyedBy: CodingKeys.self).decodeIfPresent([Departure].self, forKey: .alternatives) ?? []
+    }
+}
+
+/// A journey with changes: its legs in travelling order, and each change.
+nonisolated struct Trip: Decodable, Sendable {
+    var id: UUID
+    var legs: [ServerJourney]
+    /// `connections[i]` is from `legs[i]` to `legs[i + 1]`.
+    var connections: [TripConnection]
+    var createdAt: Date
+}
+
+/// POST /v1/trips: journeys in travelling order. A journey already in a trip moves to this one.
+nonisolated struct CreateTripRequest: Encodable, Sendable {
+    var journeyIds: [UUID]
+
+    private enum CodingKeys: String, CodingKey { case journeyIds }
+
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        // Lowercase, as in the server's responses and paths.
+        try c.encode(journeyIds.map { $0.uuidString.lowercased() }, forKey: .journeyIds)
+    }
+}
+
+/// PUT /v1/trips/{id}/legs/{leg}: the train to switch that leg to.
+nonisolated struct ReplaceLegRequest: Encodable, Sendable {
+    var trainUid: String
+    var runDate: String
 }

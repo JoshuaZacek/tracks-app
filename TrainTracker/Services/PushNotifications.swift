@@ -98,7 +98,9 @@ final class PushNotifications {
     }
 
     /// `template_unmatched` alerts are about a regular journey (no journey yet);
-    /// every other kind, `morning_summary` and `leave_now` included, opens its journey.
+    /// every other kind, `morning_summary`, `leave_now` and `connection` included,
+    /// opens its journey. A `connection` alert names the leg arriving at the change,
+    /// and a leg of a trip opens the whole trip.
     nonisolated static func destination(in userInfo: [AnyHashable: Any], threadIdentifier: String) -> Destination? {
         if userInfo["kind"] as? String == "template_unmatched" { return .regularJourneys }
         return journeyID(in: userInfo, threadIdentifier: threadIdentifier).map(Destination.journey)
