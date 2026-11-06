@@ -9,9 +9,11 @@ import SwiftData
 /// journeys moved to the server, and retries deletes made while offline.
 @Observable
 final class JourneySync {
-    static let shared = JourneySync(context: { JourneyStore.context })
+    static let shared = JourneySync(context: { JourneyStore.context }, alarms: .shared)
 
     private let client: TracksClient
+    /// Moved after every refresh; nil in tests, which leave the app's alarms alone.
+    private let alarms: StopAlarm?
     /// The cache this sync keeps (for work not started from a view, e.g. registering again).
     private let context: () -> ModelContext?
     private(set) var isRefreshing = false
@@ -23,9 +25,10 @@ final class JourneySync {
 
     private let pendingDeletesKey = "pendingJourneyDeletes"
 
-    init(client: TracksClient = .shared, context: @escaping () -> ModelContext? = { nil }) {
+    init(client: TracksClient = .shared, context: @escaping () -> ModelContext? = { nil }, alarms: StopAlarm? = nil) {
         self.client = client
         self.context = context
+        self.alarms = alarms
         // A new registration means a server that doesn't know this install's
         // journeys (its data was reset, or it's a different server): save them
         // there again rather than dropping them. Synchronous (no queue), so it
@@ -64,6 +67,7 @@ final class JourneySync {
         context.delete(journey)
         try? context.save()
         await LiveActivities.shared.end(journeyID: id)
+        alarms?.forget(journeyID: id)
         guard wasOnServer else { return }
         do {
             try await client.deleteJourney(id: id)
@@ -82,6 +86,50 @@ final class JourneySync {
         journey.live = LiveSummary(server.live)
         journey.syncedAt = .now
         try? context.save()
+        await alarms?.update(journey: journey)
+    }
+
+    /// Sets the minutes it takes to get to the station (nil clears it, and with it the leave-now alert).
+    func setTravelMinutes(_ minutes: Int?, for journey: Journey, in context: ModelContext) async throws {
+        let server = try await client.updateJourney(id: journey.id, UpdateJourneyRequest(travelMinutes: minutes.map { .value($0) } ?? .null))
+        journey.update(from: server)
+        try? context.save()
+    }
+
+    // MARK: Regular journeys
+
+    /// Repeats a journey on the days given. The server links this journey to the
+    /// new template and adds the next ones; the refresh brings them here.
+    @discardableResult
+    func repeatJourney(_ journey: Journey, days: [Int], travelMinutes: Int?, summaryTime: String?, in context: ModelContext) async throws -> JourneyTemplate {
+        let template = try await client.createJourneyTemplate(CreateJourneyTemplateRequest(
+            fromCrs: journey.from.crs,
+            toCrs: journey.to.crs,
+            departTime: RailTime.hhmm(journey.departsAt),
+            days: days,
+            trainUid: journey.trainUid,
+            travelMinutes: travelMinutes,
+            summaryTime: summaryTime,
+            journeyId: journey.id
+        ))
+        journey.templateId = template.id
+        journey.travelMinutes = template.travelMinutes
+        try? context.save()
+        await refresh(in: context)
+        return template
+    }
+
+    /// "Stop repeating": deletes the regular journey (journeys it made stay on the
+    /// server), then this journey. Nothing changes if the template can't be deleted.
+    func stopRepeating(_ journey: Journey, in context: ModelContext) async throws {
+        if let templateID = journey.templateId {
+            do {
+                try await client.deleteJourneyTemplate(id: templateID)
+            } catch let error as TracksError where error.httpStatus == 404 {
+                // Already gone.
+            }
+        }
+        await delete(journey, in: context)
     }
 
     /// Refresh soon, e.g. an alert just arrived.
@@ -94,6 +142,7 @@ final class JourneySync {
     func removeAll(in context: ModelContext) {
         try? context.delete(model: Journey.self)
         try? context.save()
+        alarms?.cancelAll()
         pendingDeletes = []
         nextRefresh = nil
         lastError = nil
@@ -129,6 +178,10 @@ final class JourneySync {
             Logger.tracks.error("Journey refresh failed: \(error.localizedDescription)")
         }
         try? context.save()
+        // Stop alarms follow the new times (and go with journeys that went).
+        if let alarms, lastError == nil {
+            await alarms.sync((try? context.fetch(FetchDescriptor<Journey>())) ?? [])
+        }
     }
 
     /// Journeys saved on the phone before they moved to the server (`syncedAt == nil`)
@@ -192,9 +245,7 @@ final class JourneySync {
     private func upsert(_ server: ServerJourney, in context: ModelContext) -> Journey {
         let id = server.id
         if let existing = try? context.fetch(FetchDescriptor<Journey>(predicate: #Predicate { $0.id == id })).first {
-            existing.archivedAt = server.archivedAt
-            existing.live = LiveSummary(server.live)
-            existing.syncedAt = .now
+            existing.update(from: server)
             return existing
         }
         let journey = Journey(server)

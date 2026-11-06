@@ -19,6 +19,8 @@ struct AddJourneyView: View {
     @State private var savingID: String?
     /// Whether the trains that have already left are shown; they fold into one row by default.
     @State private var showDeparted = false
+    /// The journey just saved: the confirmation shows it, with "Repeat on weekdays…".
+    @State private var added: Journey?
 
     /// Everything a search depends on; a change re-runs it.
     private struct SearchKey: Equatable {
@@ -72,6 +74,11 @@ struct AddJourneyView: View {
             .task(id: key) {
                 showDeparted = false
                 await search()
+            }
+            .navigationDestination(isPresented: Binding(get: { added != nil }, set: { if !$0 { added = nil } })) {
+                if let added {
+                    AddedJourneyView(journey: added) { dismiss() }
+                }
             }
             .onChange(of: RailTime.ymd(date)) { _, newDate in
                 // Today starts around now; a future day starts at midnight.
@@ -192,14 +199,13 @@ struct AddJourneyView: View {
         saved.contains { $0.trainUid == d.trainUid && $0.runDate == d.runDate && $0.from.crs == from?.crs }
     }
 
-    /// Saves the journey on the server (which checks the train calls at both stations) and closes the sheet.
+    /// Saves the journey on the server (which checks the train calls at both stations) and confirms it.
     private func save(_ d: Departure) async {
         guard let from else { return }
         savingID = d.id
         defer { savingID = nil }
         do {
-            try await JourneySync.shared.save(trainUid: d.trainUid, runDate: d.runDate, fromCrs: from.crs, toCrs: to?.crs, in: context)
-            dismiss()
+            added = try await JourneySync.shared.save(trainUid: d.trainUid, runDate: d.runDate, fromCrs: from.crs, toCrs: to?.crs, in: context)
             // Now there's a train to be alerted about: ask (once) to allow notifications.
             Task { await PushNotifications.shared.requestAuthorization() }
         } catch {
@@ -209,6 +215,45 @@ struct AddJourneyView: View {
 
     private static func startOfHour(_ date: Date) -> Date {
         RailTime.calendar.dateInterval(of: .hour, for: date)?.start ?? date
+    }
+}
+
+/// Add train's confirmation: the journey saved, and the offer to repeat it.
+struct AddedJourneyView: View {
+    let journey: Journey
+    let done: () -> Void
+    @State private var repeating = false
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                JourneyCard(journey: journey)
+                if journey.templateId == nil {
+                    Button("Repeat on weekdays…", systemImage: "repeat") { repeating = true }
+                        .buttonStyle(.glass)
+                        .controlSize(.large)
+                        .accessibilityIdentifier("repeatJourney")
+                } else {
+                    Label("Repeats. Change it in Settings › Regular journeys.", systemImage: "repeat")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(16)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Added")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden()
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done", systemImage: "checkmark", action: done)
+                    .accessibilityIdentifier("addedDone")
+            }
+        }
+        .sheet(isPresented: $repeating) {
+            RepeatJourneyView(journey: journey)
+        }
     }
 }
 

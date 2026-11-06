@@ -45,6 +45,40 @@ nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
     var delayThresholdMinutes: Int
     /// Start a Live Activity by push 30 min before departure.
     var liveActivity: Bool
+    /// How a regular journey's train is running, at the time chosen on it.
+    var morningSummary: Bool
+    /// When to set off for the station, for journeys with a travel time.
+    var leaveNow: Bool
+
+    init(delays: Bool, platforms: Bool, cancellations: Bool, departure: Bool, arrival: Bool, delayThresholdMinutes: Int, liveActivity: Bool, morningSummary: Bool = true, leaveNow: Bool = true) {
+        self.delays = delays
+        self.platforms = platforms
+        self.cancellations = cancellations
+        self.departure = departure
+        self.arrival = arrival
+        self.delayThresholdMinutes = delayThresholdMinutes
+        self.liveActivity = liveActivity
+        self.morningSummary = morningSummary
+        self.leaveNow = leaveNow
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case delays, platforms, cancellations, departure, arrival, delayThresholdMinutes, liveActivity, morningSummary, leaveNow
+    }
+
+    // Servers from before regular journeys don't send the last two: both default to on.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        delays = try c.decode(Bool.self, forKey: .delays)
+        platforms = try c.decode(Bool.self, forKey: .platforms)
+        cancellations = try c.decode(Bool.self, forKey: .cancellations)
+        departure = try c.decode(Bool.self, forKey: .departure)
+        arrival = try c.decode(Bool.self, forKey: .arrival)
+        delayThresholdMinutes = try c.decode(Int.self, forKey: .delayThresholdMinutes)
+        liveActivity = try c.decode(Bool.self, forKey: .liveActivity)
+        morningSummary = try c.decodeIfPresent(Bool.self, forKey: .morningSummary) ?? true
+        leaveNow = try c.decodeIfPresent(Bool.self, forKey: .leaveNow) ?? true
+    }
 
     static let thresholdRange = 1...60
 
@@ -114,6 +148,7 @@ nonisolated struct TracksError: LocalizedError, Sendable {
         case stationNotFound = "station_not_found"
         case trainNotRunning = "train_not_running"
         case journeyNotFound = "journey_not_found"
+        case templateNotFound = "template_not_found"
         case stationNotOnRoute = "station_not_on_route"
         case scheduleNotLoaded = "schedule_not_loaded"
         case rateLimited = "rate_limited"
@@ -311,7 +346,8 @@ nonisolated struct LiveSummary: Codable, Hashable, Sendable {
 // MARK: - Journeys (Phase 3)
 
 /// Per-journey notification overrides; unset fields follow the device's prefs.
-/// A journey's own alert settings; nil fields follow the device's.
+/// A journey's own alert settings; nil fields follow the device's (except
+/// `stopAlarm`, which only journeys have).
 nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
     var delays: Bool?
     var platforms: Bool?
@@ -320,6 +356,10 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
     var arrival: Bool?
     var delayThresholdMinutes: Int?
     var liveActivity: Bool?
+    /// "Wake me before my stop": journey-only (the device has no default); nil is off.
+    var stopAlarm: Bool?
+    var morningSummary: Bool?
+    var leaveNow: Bool?
 
     /// What applies to the journey: its own setting where it has one, else the device's.
     func applied(over device: NotificationPrefs) -> NotificationPrefs {
@@ -330,7 +370,9 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
             departure: departure ?? device.departure,
             arrival: arrival ?? device.arrival,
             delayThresholdMinutes: delayThresholdMinutes ?? device.delayThresholdMinutes,
-            liveActivity: liveActivity ?? device.liveActivity
+            liveActivity: liveActivity ?? device.liveActivity,
+            morningSummary: morningSummary ?? device.morningSummary,
+            leaveNow: leaveNow ?? device.leaveNow
         )
     }
 
@@ -341,7 +383,9 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
         return JourneyPrefsUpdate(
             delays: n(delays), platforms: n(platforms), cancellations: n(cancellations),
             departure: n(departure), arrival: n(arrival),
-            delayThresholdMinutes: n(delayThresholdMinutes), liveActivity: n(liveActivity)
+            delayThresholdMinutes: n(delayThresholdMinutes), liveActivity: n(liveActivity),
+            stopAlarm: n(stopAlarm),
+            morningSummary: n(morningSummary), leaveNow: n(leaveNow)
         )
     }
 }
@@ -355,6 +399,10 @@ nonisolated struct JourneyPrefsUpdate: Encodable, Sendable {
     var arrival: Nullable<Bool>?
     var delayThresholdMinutes: Nullable<Int>?
     var liveActivity: Nullable<Bool>?
+    /// `.null` turns the stop alarm off.
+    var stopAlarm: Nullable<Bool>?
+    var morningSummary: Nullable<Bool>?
+    var leaveNow: Nullable<Bool>?
 }
 
 /// PUT /v1/journeys/{id}/live-activity.
@@ -375,6 +423,8 @@ nonisolated struct CreateJourneyRequest: Encodable, Sendable {
 nonisolated struct UpdateJourneyRequest: Encodable, Sendable {
     var archived: Bool?
     var prefs: JourneyPrefsUpdate?
+    /// Minutes to get to the station (0...240); `.null` clears it.
+    var travelMinutes: Nullable<Int>?
 }
 
 /// A saved journey as the server stores it, with its calling pattern snapshot and live status.
@@ -392,6 +442,10 @@ nonisolated struct ServerJourney: Decodable, Sendable {
     var scheduledArrival: Date
     var bookedPlatform: String?
     var prefs: JourneyPrefs
+    /// The regular journey this was made from, if any.
+    var templateId: UUID?
+    /// Minutes to get to the station, for the leave-now alert.
+    var travelMinutes: Int?
     var createdAt: Date
     var archivedAt: Date?
     var callingPoints: [CallingPoint]
@@ -415,6 +469,8 @@ nonisolated struct JourneyListItem: Decodable, Sendable {
     var scheduledArrival: Date
     var bookedPlatform: String?
     var prefs: JourneyPrefs
+    var templateId: UUID?
+    var travelMinutes: Int?
     var createdAt: Date
     var archivedAt: Date?
     var live: LiveSummary
@@ -428,6 +484,89 @@ nonisolated struct JourneyList: Decodable, Sendable {
 
 nonisolated enum JourneyScope: String, Sendable {
     case upcoming, past
+}
+
+// MARK: - Regular journeys (Sprint 1)
+
+/// A regular journey: the server adds a journey for each day in `days`, the
+/// day before, choosing the train from `from` to `to` nearest `departTime`.
+nonisolated struct JourneyTemplate: Decodable, Hashable, Identifiable, Sendable {
+    /// The last time no train matched.
+    struct Problem: Decodable, Hashable, Sendable {
+        var date: String
+        var message: String
+    }
+
+    /// The soonest upcoming journey made from it.
+    struct NextJourney: Decodable, Hashable, Sendable {
+        var id: UUID
+        var date: String
+        var scheduledDeparture: Date
+    }
+
+    var id: UUID
+    var from: Station
+    var to: Station
+    /// "HH:MM", UK time.
+    var departTime: String
+    /// ISO weekdays, 1 = Monday ... 7 = Sunday.
+    var days: [Int]
+    /// The last train matched (a hint only; UIDs change with the timetable).
+    var trainUid: String?
+    var travelMinutes: Int?
+    /// "HH:MM" to send the morning summary; nil for none.
+    var summaryTime: String?
+    var prefs: JourneyPrefs
+    var problem: Problem?
+    var nextJourney: NextJourney?
+    var createdAt: Date
+}
+
+nonisolated struct JourneyTemplateList: Decodable, Sendable {
+    var templates: [JourneyTemplate]
+}
+
+/// POST /v1/journey-templates. Unset fields are left out.
+nonisolated struct CreateJourneyTemplateRequest: Encodable, Sendable {
+    var fromCrs: String
+    var toCrs: String
+    var departTime: String
+    var days: [Int]
+    var trainUid: String?
+    var travelMinutes: Int?
+    var summaryTime: String?
+    var prefs: JourneyPrefs?
+    /// The journey it repeats: linked to the new template, and its travel time
+    /// and prefs are the defaults.
+    var journeyId: UUID?
+
+    private enum CodingKeys: String, CodingKey {
+        case fromCrs, toCrs, departTime, days, trainUid, travelMinutes, summaryTime, prefs, journeyId
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(fromCrs, forKey: .fromCrs)
+        try c.encode(toCrs, forKey: .toCrs)
+        try c.encode(departTime, forKey: .departTime)
+        try c.encode(days, forKey: .days)
+        try c.encodeIfPresent(trainUid, forKey: .trainUid)
+        try c.encodeIfPresent(travelMinutes, forKey: .travelMinutes)
+        try c.encodeIfPresent(summaryTime, forKey: .summaryTime)
+        try c.encodeIfPresent(prefs, forKey: .prefs)
+        // Lowercase, as in the server's responses and paths.
+        try c.encodeIfPresent(journeyId?.uuidString.lowercased(), forKey: .journeyId)
+    }
+}
+
+/// PATCH /v1/journey-templates/{id}: only the fields set are changed; `.null` clears.
+/// Journeys already made keep their time and days.
+nonisolated struct UpdateJourneyTemplateRequest: Encodable, Sendable {
+    var departTime: String?
+    var days: [Int]?
+    var travelMinutes: Nullable<Int>?
+    var summaryTime: Nullable<String>?
+    var prefs: JourneyPrefsUpdate?
 }
 
 // MARK: - Live status (filled in by Darwin from server Phase 4)

@@ -14,10 +14,12 @@ final class JourneyDetailModel {
     private(set) var error: String?
 
     private let client: TracksClient
+    private let alarms: StopAlarm
 
-    init(journey: Journey, client: TracksClient = .shared) {
+    init(journey: Journey, client: TracksClient = .shared, alarms: StopAlarm = .shared) {
         self.journey = journey
         self.client = client
+        self.alarms = alarms
         liveCallingPoints = journey.callingPoints
     }
 
@@ -45,6 +47,7 @@ final class JourneyDetailModel {
                 liveCallingPoints = t.callingPoints
             }
             journey.live = LiveSummary(s) // the list shows the same state when going back
+            await alarms.update(journey: journey)
             error = nil
             return s.nextPollSeconds
         } catch {

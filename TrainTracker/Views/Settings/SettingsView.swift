@@ -14,6 +14,8 @@ struct SettingsView: View {
     @State private var error: String?
     @State private var confirmingDelete = false
     @State private var deleting = false
+    /// Opened from a "couldn't find your train" alert.
+    @State private var showingRegularJourneys = false
     private let push = PushNotifications.shared
     private let client = TracksClient.shared
 
@@ -23,9 +25,13 @@ struct SettingsView: View {
                 permissionSection
                 if let binding = Binding($prefs) {
                     alertsSection(binding)
+                    regularJourneysSection(binding)
                     liveActivitySection(binding)
-                } else if error == nil {
-                    Section { ProgressView().frame(maxWidth: .infinity) }
+                } else {
+                    if error == nil {
+                        Section { ProgressView().frame(maxWidth: .infinity) }
+                    }
+                    regularJourneysLink
                 }
                 if let error {
                     Section {
@@ -41,6 +47,12 @@ struct SettingsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", systemImage: "checkmark") { dismiss() }
                 }
+            }
+            .navigationDestination(isPresented: $showingRegularJourneys) { RegularJourneysView() }
+            .onChange(of: push.regularJourneysToOpen, initial: true) { _, open in
+                guard open else { return }
+                push.regularJourneysToOpen = false
+                showingRegularJourneys = true
             }
             .task { await load() }
             .task(id: prefs) { await saveIfChanged() }
@@ -114,6 +126,33 @@ struct SettingsView: View {
             Text("For every journey, unless you change it on the journey. Platform alerts come when the platform is announced or changes; arrival alerts 10 minutes before and on arriving.")
         }
         .disabled(!push.authorization.allowsAlerts && push.authorization != .notDetermined)
+    }
+
+    private func regularJourneysSection(_ prefs: Binding<NotificationPrefs>) -> some View {
+        Section {
+            NavigationLink { RegularJourneysView() } label: {
+                Label("Regular journeys", systemImage: "repeat")
+            }
+            .accessibilityIdentifier("regularJourneys")
+            Group {
+                Toggle("Morning summary", isOn: prefs.morningSummary)
+                Toggle("Leave now", isOn: prefs.leaveNow)
+            }
+            .disabled(!push.authorization.allowsAlerts && push.authorization != .notDetermined)
+        } header: {
+            Text("Commuting")
+        } footer: {
+            Text("Morning summary: how a regular journey's train is running, at the time you choose on it. Leave now: when to set off, for journeys with a time to get to the station.")
+        }
+    }
+
+    /// Before the settings load (or if they can't), the list is still reachable.
+    private var regularJourneysLink: some View {
+        Section {
+            NavigationLink { RegularJourneysView() } label: {
+                Label("Regular journeys", systemImage: "repeat")
+            }
+        }
     }
 
     private func liveActivitySection(_ prefs: Binding<NotificationPrefs>) -> some View {

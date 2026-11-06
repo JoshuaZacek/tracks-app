@@ -164,4 +164,55 @@ struct JourneySyncTests {
         #expect(try await client.journeys(.upcoming).journeys.isEmpty)
         try await client.deleteDevice()
     }
+
+    // MARK: - Regular journeys (Sprint 1)
+
+    @Test func repeatEditAndStopRepeating() async throws {
+        let client = makeClient()
+        let sync = JourneySync(client: client)
+        let context = try makeContext()
+        let d = try await tomorrowsTrain(client)
+        let saved = try await sync.save(trainUid: d.trainUid, runDate: d.runDate, fromCrs: "KGX", toCrs: "YRK", in: context)
+        // Only tomorrow's weekday, which the journey saved already covers: nothing else is added.
+        let weekday = Weekdays.isoWeekday(of: d.scheduledDeparture)
+
+        let template = try await sync.repeatJourney(saved, days: [weekday], travelMinutes: 10, summaryTime: nil, in: context)
+        #expect(template.from.crs == "KGX" && template.to.crs == "YRK")
+        #expect(template.departTime == RailTime.hhmm(d.scheduledDeparture))
+        #expect(template.days == [weekday])
+        #expect(template.travelMinutes == 10)
+        #expect(template.summaryTime == nil)
+        #expect(template.nextJourney?.id == saved.id)
+        #expect(saved.templateId == template.id)
+        #expect(try await client.journeyTemplates().map(\.id) == [template.id])
+        #expect(try await client.journeys(.upcoming).journeys.map(\.id) == [saved.id])
+
+        let edited = try await client.updateJourneyTemplate(id: template.id, UpdateJourneyTemplateRequest(travelMinutes: .null, summaryTime: .value("06:00")))
+        #expect(edited.travelMinutes == nil)
+        #expect(edited.summaryTime == "06:00")
+        #expect(edited.days == [weekday])
+
+        try await sync.setTravelMinutes(25, for: saved, in: context)
+        #expect(saved.travelMinutes == 25)
+        try await sync.setTravelMinutes(nil, for: saved, in: context)
+        #expect(saved.travelMinutes == nil)
+
+        try await sync.stopRepeating(saved, in: context)
+        #expect(try await client.journeyTemplates().isEmpty)
+        #expect(try await client.journeys(.upcoming).journeys.isEmpty)
+        #expect(try context.fetch(FetchDescriptor<Journey>()).isEmpty)
+        try await client.deleteDevice()
+    }
+
+    @Test func devicePrefsHaveTheCommuterAlerts() async throws {
+        let client = makeClient()
+        var device = try await client.device()
+        #expect(device.prefs.morningSummary && device.prefs.leaveNow) // on by default
+        var prefs = device.prefs
+        prefs.leaveNow = false
+        device = try await client.updateDevice(UpdateDeviceRequest(prefs: prefs))
+        #expect(!device.prefs.leaveNow)
+        #expect(device.prefs.morningSummary)
+        try await client.deleteDevice()
+    }
 }

@@ -44,7 +44,10 @@ final class TrainTrackerUITests: XCTestCase {
         attachScreenshot(of: app, named: "Add train: departures")
         departure.tap()
 
-        // The sheet closes and the journey appears.
+        // The confirmation offers to repeat it; Done closes the sheet and the journey appears.
+        XCTAssertTrue(app.buttons["repeatJourney"].waitForExistence(timeout: 15))
+        attachScreenshot(of: app, named: "Add train: added")
+        app.buttons["addedDone"].tap()
         let card = app.descendants(matching: .any).matching(identifier: "journeyCard").firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 15))
         XCTAssertTrue(card.label.contains("from York to London Kings Cross"), card.label)

@@ -141,6 +141,28 @@ final class TracksClient {
         let _: Empty = try await request("DELETE", "/v1/journeys/\(id.uuidString.lowercased())")
     }
 
+    // MARK: - Regular journeys
+
+    /// This install's regular journeys, by departure time.
+    func journeyTemplates() async throws -> [JourneyTemplate] {
+        let list: JourneyTemplateList = try await request("GET", "/v1/journey-templates")
+        return list.templates
+    }
+
+    /// Starts repeating a journey. The server adds the next one(s) straight away.
+    func createJourneyTemplate(_ body: CreateJourneyTemplateRequest) async throws -> JourneyTemplate {
+        try await request("POST", "/v1/journey-templates", body: body)
+    }
+
+    func updateJourneyTemplate(id: UUID, _ body: UpdateJourneyTemplateRequest) async throws -> JourneyTemplate {
+        try await request("PATCH", "/v1/journey-templates/\(id.uuidString.lowercased())", body: body)
+    }
+
+    /// Stops repeating. Journeys already made stay.
+    func deleteJourneyTemplate(id: UUID) async throws {
+        let _: Empty = try await request("DELETE", "/v1/journey-templates/\(id.uuidString.lowercased())")
+    }
+
     /// Starts (or resumes) server pushes to a Live Activity for this journey,
     /// whoever started it. Send again whenever the token rotates.
     func registerLiveActivity(journeyID id: UUID, pushToken: String) async throws {

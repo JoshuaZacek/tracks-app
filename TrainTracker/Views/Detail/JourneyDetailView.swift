@@ -6,6 +6,7 @@ import SwiftUI
 struct JourneyDetailView: View {
     @State private var model: JourneyDetailModel
     @State private var showingAlerts = false
+    @State private var showingRepeat = false
 
     init(journey: Journey) {
         _model = State(initialValue: JourneyDetailModel(journey: journey))
@@ -41,6 +42,14 @@ struct JourneyDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                // A regular journey opens its settings; any other offers to repeat it.
+                Button(journey.templateId == nil ? "Repeat on weekdays…" : "Regular journey",
+                       systemImage: journey.templateId == nil ? "repeat" : "repeat.circle.fill") {
+                    showingRepeat = true
+                }
+                .accessibilityIdentifier("repeatJourney")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Alerts", systemImage: LiveActivities.shared.isRunning(for: journey.id) ? "bell.badge.fill" : "bell") {
                     showingAlerts = true
                 }
@@ -50,6 +59,13 @@ struct JourneyDetailView: View {
         .sheet(isPresented: $showingAlerts) {
             JourneyAlertsView(journey: journey)
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showingRepeat) {
+            if let templateID = journey.templateId {
+                RegularJourneySheet(id: templateID)
+            } else {
+                RepeatJourneyView(journey: journey)
+            }
         }
         .refreshable { await model.refresh() }
         .task { await model.run() }

@@ -14,6 +14,9 @@ final class PushNotifications {
     private(set) var authorization: UNAuthorizationStatus = .notDetermined
     /// Set when an alert is tapped; the Journeys screen opens it and clears it.
     var journeyToOpen: UUID?
+    /// Set when a "couldn't find your train" alert is tapped: Settings opens
+    /// Regular journeys and clears it.
+    var regularJourneysToOpen = false
 
     private let client: TracksClient
     private var apnsToken: String?
@@ -87,9 +90,34 @@ final class PushNotifications {
 
     // MARK: - Alerts
 
+    /// Where tapping an alert goes.
+    nonisolated enum Destination: Equatable, Sendable {
+        case journey(UUID)
+        /// `template_unmatched`: no train matched a regular journey.
+        case regularJourneys
+    }
+
+    /// `template_unmatched` alerts are about a regular journey (no journey yet);
+    /// every other kind, `morning_summary` and `leave_now` included, opens its journey.
+    nonisolated static func destination(in userInfo: [AnyHashable: Any], threadIdentifier: String) -> Destination? {
+        if userInfo["kind"] as? String == "template_unmatched" { return .regularJourneys }
+        return journeyID(in: userInfo, threadIdentifier: threadIdentifier).map(Destination.journey)
+    }
+
     /// The journey an alert is about: the server's "journeyId" key, else its thread.
     nonisolated static func journeyID(in userInfo: [AnyHashable: Any], threadIdentifier: String) -> UUID? {
         (userInfo["journeyId"] as? String).flatMap(UUID.init(uuidString:)) ?? UUID(uuidString: threadIdentifier)
+    }
+
+    func open(_ destination: Destination) {
+        switch destination {
+        case .journey(let id):
+            Logger.tracks.info("Alert tapped for journey \(id)")
+            journeyToOpen = id
+        case .regularJourneys:
+            Logger.tracks.info("Alert tapped for regular journeys")
+            regularJourneysToOpen = true
+        }
     }
 }
 
@@ -117,6 +145,39 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         PushNotifications.shared.didFailToRegister(error)
     }
 
+    /// Background pushes (`content-available`). The server sends `stop_alarm`
+    /// when the arrival moves for a journey with the stop alarm on: the alarm
+    /// moves from the payload at once, then the journeys refresh if there's
+    /// time. (Alerts and Live Activity updates don't come through here.)
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        guard let push = StopAlarmPush(userInfo: userInfo) else {
+            completionHandler(.noData)
+            return
+        }
+        Logger.tracks.info("Stop alarm push for \(push.journeyID)")
+        let finish = Once { completionHandler(.newData) }
+        Task {
+            await StopAlarm.shared.apply(push, in: JourneyStore.context)
+            // iOS allows about 30 s in all; the alarm has already moved, so the refresh is a bonus.
+            Task {
+                try? await Task.sleep(for: .seconds(15))
+                finish()
+            }
+            await JourneySync.shared.refresh(in: JourneyStore.context)
+            finish()
+        }
+    }
+
+    /// Runs its action the first time it's called.
+    private final class Once {
+        private var action: (() -> Void)?
+        init(_ action: @escaping () -> Void) { self.action = action }
+        func callAsFunction() {
+            action?()
+            action = nil
+        }
+    }
+
     // The completion-handler forms: the async ones finish off the main
     // thread, which UIKit asserts against when opening the app from an alert.
 
@@ -128,15 +189,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
     }
 
-    /// Tapping an alert opens its journey.
+    /// Tapping an alert opens its journey (or, for a regular journey, the list of them).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let content = response.notification.request.content
-        let id = PushNotifications.journeyID(in: content.userInfo, threadIdentifier: content.threadIdentifier)
+        let destination = PushNotifications.destination(in: content.userInfo, threadIdentifier: content.threadIdentifier)
         DispatchQueue.main.async {
-            if let id {
-                Logger.tracks.info("Alert tapped for journey \(id)")
-                PushNotifications.shared.journeyToOpen = id
-            }
+            if let destination { PushNotifications.shared.open(destination) }
             completionHandler()
         }
     }

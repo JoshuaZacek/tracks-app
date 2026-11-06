@@ -36,6 +36,10 @@ final class Journey {
     var live: LiveSummary?
     /// This journey's own alert settings (nil fields follow the device's).
     var prefs: JourneyPrefs?
+    /// The regular journey this was made from (nil for one-off journeys).
+    var templateId: UUID?
+    /// Minutes to get to the station, for the leave-now alert.
+    var travelMinutes: Int?
 
     init(id: UUID = UUID(), savedAt: Date = .now, date: String, train: TrainDetails, fromIndex: Int, toIndex: Int) {
         self.id = id
@@ -69,6 +73,18 @@ final class Journey {
         self.archivedAt = server.archivedAt
         self.live = LiveSummary(server.live)
         self.prefs = server.prefs
+        self.templateId = server.templateId
+        self.travelMinutes = server.travelMinutes
+    }
+
+    /// Takes the latest state from a full journey (after a save or change).
+    func update(from server: ServerJourney, syncedAt: Date = .now) {
+        archivedAt = server.archivedAt
+        live = LiveSummary(server.live)
+        prefs = server.prefs
+        templateId = server.templateId
+        travelMinutes = server.travelMinutes
+        self.syncedAt = syncedAt
     }
 
     /// Takes the latest state from the journey list.
@@ -77,6 +93,8 @@ final class Journey {
         archivedAt = item.archivedAt
         live = item.live
         prefs = item.prefs
+        templateId = item.templateId
+        travelMinutes = item.travelMinutes
         self.syncedAt = syncedAt
     }
 

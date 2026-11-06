@@ -107,7 +107,7 @@ struct PushPayloadTests {
         #expect(sent["delays"] as? Bool == false)
         #expect(sent["delayThresholdMinutes"] as? Int == 10)
         // Everything else goes back to the device's.
-        for key in ["platforms", "cancellations", "departure", "arrival", "liveActivity"] {
+        for key in ["platforms", "cancellations", "departure", "arrival", "liveActivity", "stopAlarm"] {
             #expect(sent[key] is NSNull, "\(key)")
         }
         #expect(body["archived"] == nil)
@@ -175,6 +175,12 @@ struct PushEndpointTests {
         #expect(updated.prefs == JourneyPrefs(delays: false, liveActivity: false))
         updated = try await client.updateJourney(id: journey.id, UpdateJourneyRequest(prefs: JourneyPrefs(delayThresholdMinutes: 20).replacingAll))
         #expect(updated.prefs == JourneyPrefs(delayThresholdMinutes: 20))
+
+        // The stop alarm: on, then off again with null.
+        updated = try await client.updateJourney(id: journey.id, UpdateJourneyRequest(prefs: JourneyPrefs(stopAlarm: true).replacingAll))
+        #expect(updated.prefs == JourneyPrefs(stopAlarm: true))
+        updated = try await client.updateJourney(id: journey.id, UpdateJourneyRequest(prefs: JourneyPrefs().replacingAll))
+        #expect(updated.prefs.stopAlarm == nil)
 
         try await client.registerLiveActivity(journeyID: journey.id, pushToken: fakeToken())
         try await client.registerLiveActivity(journeyID: journey.id, pushToken: fakeToken()) // rotation

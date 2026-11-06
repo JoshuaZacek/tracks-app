@@ -17,6 +17,9 @@ struct JourneysView: View {
     @State private var addingJourney = false
     @State private var showingSettings = false
     @State private var path: [UUID] = []
+    /// A journey from a regular journey, being deleted: skip it or stop repeating?
+    @State private var deletingRegular: Journey?
+    @State private var deleteError: String?
     private let sync = JourneySync.shared
     private let push = PushNotifications.shared
 
@@ -108,6 +111,34 @@ struct JourneysView: View {
             // A tapped alert opens its journey (once the list has it).
             .onChange(of: push.journeyToOpen, initial: true) { _, id in openTappedJourney(id) }
             .onChange(of: journeys.count) { openTappedJourney(push.journeyToOpen) }
+            // "Couldn't find your train": Settings opens Regular journeys.
+            .onChange(of: push.regularJourneysToOpen, initial: true) { _, open in
+                if open {
+                    addingJourney = false
+                    showingSettings = true
+                }
+            }
+            .confirmationDialog("This journey repeats", isPresented: Binding(
+                get: { deletingRegular != nil },
+                set: { if !$0 { deletingRegular = nil } }
+            ), titleVisibility: .visible, presenting: deletingRegular) { journey in
+                Button("Skip this one", role: .destructive) {
+                    Task { await sync.delete(journey, in: context) }
+                }
+                Button("Stop repeating", role: .destructive) {
+                    Task { await stopRepeating(journey) }
+                }
+            } message: { _ in
+                Text("Skip just this one, or stop adding it. Journeys already added stay.")
+            }
+            .alert("Couldn't stop repeating", isPresented: Binding(
+                get: { deleteError != nil },
+                set: { if !$0 { deleteError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(deleteError ?? "")
+            }
             // Tapping a Live Activity: traintracker://journey/<id>.
             .onOpenURL { url in
                 guard url.scheme == "traintracker", url.host() == "journey", let id = UUID(uuidString: url.lastPathComponent) else { return }
@@ -140,6 +171,15 @@ struct JourneysView: View {
         addingJourney = false
         showingSettings = false
         path = [id]
+    }
+
+    /// Deletes the regular journey and this one; neither goes if the server can't be reached.
+    private func stopRepeating(_ journey: Journey) async {
+        do {
+            try await sync.stopRepeating(journey, in: context)
+        } catch {
+            deleteError = error.localizedDescription
+        }
     }
 
     private func offlineNote(_ message: String) -> some View {
@@ -207,9 +247,16 @@ struct JourneysView: View {
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                     .swipeActions {
-                        Button("Delete", systemImage: "trash", role: .destructive) {
-                            Task { await sync.delete(journey, in: context) }
+                        // A regular journey's asks first, so its row mustn't slide away yet (as destructive ones do).
+                        let regular = journey.templateId != nil
+                        Button("Delete", systemImage: "trash", role: regular ? nil : .destructive) {
+                            if regular {
+                                deletingRegular = journey
+                            } else {
+                                Task { await sync.delete(journey, in: context) }
+                            }
                         }
+                        .tint(.red)
                     }
             }
         }

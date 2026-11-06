@@ -81,7 +81,7 @@
         "INFOPLIST_FILE": "Config/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "tracks",
         "INFOPLIST_KEY_NSLocalNetworkUsageDescription": "tracks connects to the tracks server on your Mac over the local network.",
-        "INFOPLIST_KEY_NSLocationWhenInUseUsageDescription": "Your location is sent to the tracks server only to find the stations near you, and isn't stored.",
+        "INFOPLIST_KEY_NSLocationWhenInUseUsageDescription": "Your location finds the stations near you (sent to the tracks server, not stored) and how long it takes to get to your station (only the minutes are sent).",
         "INFOPLIST_KEY_NSSupportsLiveActivities": "YES",
         "INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates": "YES",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]": "YES",
