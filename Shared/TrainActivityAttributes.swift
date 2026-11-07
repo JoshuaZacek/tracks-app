@@ -71,6 +71,9 @@ nonisolated struct TrainActivityAttributes: ActivityAttributes, Sendable {
         var nextStopName: String?
         var legDepartedAt: Date?
         var nextExpectedAt: Date?
+        /// "Divides at Horsham" (with "· front 4 coaches" when known); nil when
+        /// it doesn't divide on my route, or once it has left the division station.
+        var divides: String?
 
         init(
             state: Phase,
@@ -86,7 +89,8 @@ nonisolated struct TrainActivityAttributes: ActivityAttributes, Sendable {
             message: String? = nil,
             nextStopName: String? = nil,
             legDepartedAt: Date? = nil,
-            nextExpectedAt: Date? = nil
+            nextExpectedAt: Date? = nil,
+            divides: String? = nil
         ) {
             self.state = state
             self.scheduledDeparture = scheduledDeparture
@@ -102,6 +106,7 @@ nonisolated struct TrainActivityAttributes: ActivityAttributes, Sendable {
             self.nextStopName = nextStopName
             self.legDepartedAt = legDepartedAt
             self.nextExpectedAt = nextExpectedAt
+            self.divides = divides
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -109,6 +114,7 @@ nonisolated struct TrainActivityAttributes: ActivityAttributes, Sendable {
             case scheduledArrival, expectedArrival, actualArrival
             case delayMinutes, platform, isCancelled, message
             case nextStopName, legDepartedAt, nextExpectedAt
+            case divides
         }
 
         init(from decoder: any Decoder) throws {
@@ -127,6 +133,8 @@ nonisolated struct TrainActivityAttributes: ActivityAttributes, Sendable {
             nextStopName = try c.decodeIfPresent(String.self, forKey: .nextStopName)
             legDepartedAt = try Self.optionalDate(c, .legDepartedAt)
             nextExpectedAt = try Self.optionalDate(c, .nextExpectedAt)
+            // Missing from servers (and activities started) before dividing trains.
+            divides = try c.decodeIfPresent(String.self, forKey: .divides)
         }
 
         func encode(to encoder: any Encoder) throws {
@@ -145,6 +153,7 @@ nonisolated struct TrainActivityAttributes: ActivityAttributes, Sendable {
             try c.encodeIfPresent(nextStopName, forKey: .nextStopName)
             try c.encodeIfPresent(legDepartedAt.map(Self.iso), forKey: .legDepartedAt)
             try c.encodeIfPresent(nextExpectedAt.map(Self.iso), forKey: .nextExpectedAt)
+            try c.encodeIfPresent(divides, forKey: .divides)
         }
 
         // MARK: ISO 8601 times

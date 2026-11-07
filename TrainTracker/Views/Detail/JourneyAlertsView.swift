@@ -41,6 +41,8 @@ struct JourneyAlertsView: View {
                     choice("Cancellations", \.cancellations, default: device?.cancellations)
                     choice("Departure", \.departure, default: device?.departure)
                     choice("Arrival", \.arrival, default: device?.arrival)
+                    choice("Dividing train", \.divides, default: device?.divides)
+                        .accessibilityIdentifier("dividesChoice")
                     // The change after this train, when it's followed by another in a trip.
                     if !journey.isLastLeg {
                         choice("Connection", \.connections, default: device?.connections)
@@ -49,9 +51,9 @@ struct JourneyAlertsView: View {
                     Text("Alert me about")
                 } footer: {
                     if !journey.isLastLeg {
-                        Text("Connection: when the change at \(journey.to.name) is at risk or missed, with the next train, and when it's back on. “Default” follows Settings.")
+                        Text("Connection: when the change at \(journey.to.name) is at risk or missed, with the next train, and when it's back on. Dividing train: which part to be in, if the train divides before \(journey.to.name). “Default” follows Settings.")
                     } else {
-                        Text("“Default” follows Settings, so changing it there changes this journey too.")
+                        Text("Dividing train: which part to be in, if the train divides before \(journey.to.name). “Default” follows Settings, so changing it there changes this journey too.")
                     }
                 }
                 if let error {

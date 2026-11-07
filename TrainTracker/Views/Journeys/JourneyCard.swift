@@ -3,7 +3,8 @@ import SwiftUI
 /// One journey on the Journeys screen: time box on the left, then origin and
 /// destination with the route line between them, filled in teal as the train
 /// travels. Underneath: the platform (under the station it's at) and the live
-/// status (countdown, arrival or cancellation).
+/// status (countdown, arrival or cancellation). Before the train leaves, how
+/// busy it is shows under the time.
 struct JourneyCard: View {
     let journey: Journey
     var now: Date = .now
@@ -13,7 +14,7 @@ struct JourneyCard: View {
     var body: some View {
         let model = JourneyCardModel(journey: journey, now: now)
         HStack(alignment: .center, spacing: 14) {
-            TimeBox(time: model.time, tone: model.timeTone)
+            TimeBox(time: model.time, tone: model.timeTone, busy: model.busy)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 10) {
                     Text(journey.from.crs)
@@ -62,6 +63,7 @@ struct JourneyCard: View {
         var parts = ["\(model.time) from \(journey.from.name) to \(journey.to.name)"]
         if model.timeTone == .late { parts.append("running late") }
         if let platform = model.platform { parts.append("platform \(platform)\(PlatformBadge.note(confirmed: model.platformConfirmed))") }
+        if let busy = model.busy?.text { parts.append(busy) }
         if let status = model.status { parts.append(status) }
         if let stale = model.staleNote { parts.append(stale) }
         return parts.joined(separator: ", ")
@@ -184,19 +186,28 @@ extension JourneyCardModel.Tone {
     }
 }
 
-/// Grey box with the departure time: amber when late, struck through in red when cancelled.
+/// Grey box with the departure time: amber when late, struck through in red
+/// when cancelled. Before the train leaves, how busy it is goes under the time
+/// (the row beside it has no room left once the countdown starts).
 struct TimeBox: View {
     let time: String
     var tone: JourneyCardModel.Tone = .normal
+    var busy: LoadingLevel?
 
     var body: some View {
-        Text(time)
-            .font(.system(.title3, design: .monospaced).weight(.semibold))
-            .foregroundStyle(tone == .normal ? AnyShapeStyle(.primary) : tone.style)
-            .strikethrough(tone == .cancelled)
-            .frame(minWidth: 74, minHeight: 50)
-            .padding(.horizontal, 10)
-            .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 14, style: .continuous))
+        VStack(spacing: 2) {
+            Text(time)
+                .font(.system(.title3, design: .monospaced).weight(.semibold))
+                .foregroundStyle(tone == .normal ? AnyShapeStyle(.primary) : tone.style)
+                .strikethrough(tone == .cancelled)
+            if let busy {
+                BusyBadge(level: busy)
+            }
+        }
+        .padding(.vertical, busy == nil ? 0 : 6)
+        .frame(minWidth: 74, minHeight: 50)
+        .padding(.horizontal, 10)
+        .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -227,6 +238,29 @@ struct PlatformBadge: View {
     }
 
     static func note(confirmed: Bool) -> String { confirmed ? ", confirmed" : ", predicted" }
+}
+
+/// How busy the train is at my station, under the departure time: one to
+/// three people and "Some seats", amber when busy.
+struct BusyBadge: View {
+    let level: LoadingLevel
+
+    var body: some View {
+        if let text = level.text {
+            HStack(spacing: 3) {
+                Image(systemName: level.symbol)
+                    .imageScale(.small)
+                Text(text)
+            }
+            .lineLimit(1)
+            .fixedSize()
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(level.tone == .normal ? AnyShapeStyle(.secondary) : level.tone.style)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(text)
+            .accessibilityIdentifier("busyBadge")
+        }
+    }
 }
 
 /// The line between origin and destination: grey with end dots, filled in teal

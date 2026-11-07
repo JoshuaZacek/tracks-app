@@ -132,7 +132,8 @@ struct ActivityMiddle: View {
     }
 }
 
-/// The line under the route: platform, next stop, arrival or what went wrong.
+/// The line under the route: platform, then what went wrong, where the train
+/// divides, the next stop or arrival.
 struct ActivityFooter: View {
     let attributes: TrainActivityAttributes
     let state: TrainActivityAttributes.ContentState
@@ -161,6 +162,16 @@ struct ActivityFooter: View {
             Text("Arrived at \(attributes.toName) \(ActivityTime.hhmm(state.arrivalTime))")
         } else if let message = state.message {
             Text(message)
+        } else if let divides = state.divides {
+            // Until the train leaves the division station (the server clears it
+            // then). Two lines at most, so "· front 4 coaches" isn't cut off.
+            Text("\(Image(systemName: "arrow.triangle.branch")) \(divides)")
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.9)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(divides)
+                .accessibilityIdentifier("activityDivides")
         } else if state.departed, let next = state.nextStopName, let due = state.nextExpectedAt {
             Text("Next: \(next) \(ActivityTime.hhmm(due))")
         } else if state.departed {
@@ -229,6 +240,10 @@ struct ActivityTrainIcon: View {
             state: .departed, scheduledDeparture: now.addingTimeInterval(-20 * 60), actualDeparture: now.addingTimeInterval(-20 * 60),
             scheduledArrival: now.addingTimeInterval(40 * 60), platform: .init(number: "1", confirmed: false),
             nextStopName: "Peterborough", legDepartedAt: now.addingTimeInterval(-20 * 60), nextExpectedAt: now.addingTimeInterval(15 * 60)
+        ))
+        TrainActivityLockScreenView(attributes: attributes, state: .init(
+            state: .live, scheduledDeparture: now.addingTimeInterval(20 * 60), scheduledArrival: now.addingTimeInterval(80 * 60),
+            platform: .init(number: "15", confirmed: true), divides: "Divides at Horsham · front 4 coaches"
         ))
     }
     .background(Color(.secondarySystemBackground))

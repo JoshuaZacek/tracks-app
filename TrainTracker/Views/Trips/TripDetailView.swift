@@ -100,7 +100,7 @@ struct TripDetailView: View {
 }
 
 /// One train of a trip: its card (opening the journey, with its map and alerts),
-/// any message from the server, and its stops with live times.
+/// where it divides, how busy it is, messages, and its stops with live times.
 private struct TripLegSection: View {
     let number: Int
     let total: Int
@@ -129,17 +129,13 @@ private struct TripLegSection: View {
                 JourneyCard(journey: journey, now: now)
             }
             .buttonStyle(.plain)
-            let messages = [model.status?.message, model.status?.service?.delayReason, model.status?.service?.cancelReason].compactMap { $0 }
-            if !messages.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(messages, id: \.self) { Text($0) }
-                }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
-                .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 18, style: .continuous))
-            }
+            // Where it divides, how busy, station messages and the server's notes, as on the journey screen.
+            JourneyNotices(
+                journey: journey,
+                status: model.status,
+                notes: [model.status?.message, model.status?.service?.delayReason, model.status?.service?.cancelReason].compactMap { $0 },
+                stationMessages: model.stationMessages
+            )
             let rows = StopRow.rows(for: journey, liveCallingPoints: model.liveCallingPoints, now: now)
             StopList(rows: rows, trainFraction: model.trainFraction(rows: rows, now: now))
         }

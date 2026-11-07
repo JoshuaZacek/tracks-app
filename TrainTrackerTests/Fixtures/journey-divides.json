@@ -1,0 +1,233 @@
+{
+  "id": "3f0c9e4a-8d4b-4c2e-9b1a-6e2f5d7c8a10",
+  "trainUid": "G26226",
+  "runDate": "2026-11-07",
+  "date": "2026-11-07",
+  "headcode": "1C46",
+  "operator": {
+    "code": "SN",
+    "name": "Southern"
+  },
+  "from": {
+    "crs": "VIC",
+    "name": "London Victoria",
+    "lat": 51.4952,
+    "lon": -0.1441
+  },
+  "to": {
+    "crs": "CCH",
+    "name": "Chichester",
+    "lat": 50.8318,
+    "lon": -0.7817
+  },
+  "scheduledDeparture": "2026-11-07T16:24:00+00:00",
+  "scheduledArrival": "2026-11-07T18:12:00+00:00",
+  "bookedPlatform": "15",
+  "prefs": {
+    "divides": false
+  },
+  "templateId": null,
+  "travelMinutes": null,
+  "trip": null,
+  "connection": null,
+  "createdAt": "2026-11-07T15:02:11+00:00",
+  "archivedAt": null,
+  "callingPoints": [
+    {
+      "crs": "VIC",
+      "name": "London Victoria",
+      "scheduledArrival": null,
+      "scheduledDeparture": "2026-11-07T16:24:00+00:00",
+      "bookedPlatform": "15",
+      "live": null
+    },
+    {
+      "crs": "CLJ",
+      "name": "Clapham Junction",
+      "scheduledArrival": "2026-11-07T16:30:00+00:00",
+      "scheduledDeparture": "2026-11-07T16:31:00+00:00",
+      "bookedPlatform": "13",
+      "live": null
+    },
+    {
+      "crs": "ECR",
+      "name": "East Croydon",
+      "scheduledArrival": "2026-11-07T16:38:00+00:00",
+      "scheduledDeparture": "2026-11-07T16:39:00+00:00",
+      "bookedPlatform": "4",
+      "live": null
+    },
+    {
+      "crs": "GTW",
+      "name": "Gatwick Airport",
+      "scheduledArrival": "2026-11-07T16:55:00+00:00",
+      "scheduledDeparture": "2026-11-07T16:56:00+00:00",
+      "bookedPlatform": "5",
+      "live": null
+    },
+    {
+      "crs": "TBD",
+      "name": "Three Bridges",
+      "scheduledArrival": "2026-11-07T17:01:00+00:00",
+      "scheduledDeparture": "2026-11-07T17:02:00+00:00",
+      "bookedPlatform": "4",
+      "live": null
+    },
+    {
+      "crs": "CRW",
+      "name": "Crawley",
+      "scheduledArrival": "2026-11-07T17:06:00+00:00",
+      "scheduledDeparture": "2026-11-07T17:07:00+00:00",
+      "bookedPlatform": "1",
+      "live": null
+    },
+    {
+      "crs": "HRH",
+      "name": "Horsham",
+      "scheduledArrival": "2026-11-07T17:27:00+00:00",
+      "scheduledDeparture": "2026-11-07T17:31:00+00:00",
+      "bookedPlatform": "2",
+      "live": null
+    },
+    {
+      "crs": "PUL",
+      "name": "Pulborough",
+      "scheduledArrival": "2026-11-07T17:45:00+00:00",
+      "scheduledDeparture": "2026-11-07T17:46:00+00:00",
+      "bookedPlatform": null,
+      "live": null
+    },
+    {
+      "crs": "ARU",
+      "name": "Arundel",
+      "scheduledArrival": "2026-11-07T17:55:00+00:00",
+      "scheduledDeparture": "2026-11-07T17:56:00+00:00",
+      "bookedPlatform": null,
+      "live": null
+    },
+    {
+      "crs": "BAA",
+      "name": "Barnham",
+      "scheduledArrival": "2026-11-07T18:03:00+00:00",
+      "scheduledDeparture": "2026-11-07T18:04:00+00:00",
+      "bookedPlatform": "2",
+      "live": null
+    },
+    {
+      "crs": "CCH",
+      "name": "Chichester",
+      "scheduledArrival": "2026-11-07T18:12:00+00:00",
+      "scheduledDeparture": "2026-11-07T18:13:00+00:00",
+      "bookedPlatform": "1",
+      "live": null
+    },
+    {
+      "crs": "HAV",
+      "name": "Havant",
+      "scheduledArrival": "2026-11-07T18:25:00+00:00",
+      "scheduledDeparture": "2026-11-07T18:26:00+00:00",
+      "bookedPlatform": "1",
+      "live": null
+    },
+    {
+      "crs": "PMH",
+      "name": "Portsmouth Harbour",
+      "scheduledArrival": "2026-11-07T18:47:00+00:00",
+      "scheduledDeparture": null,
+      "bookedPlatform": "3",
+      "live": null
+    }
+  ],
+  "fromIndex": 0,
+  "toIndex": 10,
+  "route": [],
+  "live": {
+    "state": "live",
+    "checkedAt": "2026-11-07T16:05:40+00:00",
+    "nextPollSeconds": 30,
+    "stale": false,
+    "message": null,
+    "service": {
+      "rid": "202611077126226",
+      "scheduledDeparture": "2026-11-07T16:24:00+00:00",
+      "expectedDeparture": "2026-11-07T16:24:00+00:00",
+      "actualDeparture": null,
+      "delayMinutes": 0,
+      "platform": {
+        "number": "15",
+        "source": "live",
+        "confirmed": false,
+        "hidden": false
+      },
+      "isCancelled": false,
+      "cancelReason": null,
+      "delayReason": null
+    },
+    "progress": null,
+    "position": null,
+    "divides": {
+      "atCrs": "HRH",
+      "atName": "Horsham",
+      "at": "2026-11-07T17:27:00+00:00",
+      "portions": [
+        {
+          "destCrs": "PMH",
+          "destName": "Portsmouth Harbour",
+          "yours": true,
+          "note": null
+        },
+        {
+          "destCrs": "BOG",
+          "destName": "Bognor Regis",
+          "yours": false,
+          "note": null
+        }
+      ],
+      "message": "This train divides at Horsham; only some coaches go to Chichester."
+    },
+    "loading": {
+      "percentage": 42,
+      "level": "moderate",
+      "coaches": [
+        {
+          "number": "A1",
+          "percentage": 32,
+          "class": "Standard"
+        },
+        {
+          "number": "B1",
+          "percentage": 13,
+          "class": null
+        }
+      ],
+      "quietestCoaches": [
+        "B1",
+        "A1"
+      ]
+    }
+  },
+  "stationMessages": [
+    {
+      "id": "190201",
+      "stations": [
+        "VIC"
+      ],
+      "category": "Station",
+      "severity": "major",
+      "text": "Disruption at London Victoria: platforms 15 to 19 are closed until 18:00.",
+      "url": null,
+      "updatedAt": "2026-11-07T15:58:02+00:00"
+    },
+    {
+      "id": "190196",
+      "stations": [
+        "NOT"
+      ],
+      "category": "Train",
+      "severity": "minor",
+      "text": "Trains running between Nottingham and Mansfield may be delayed by up to 30 minutes. Latest information can be found in the Disruptions area of the National Rail website.",
+      "url": "https://www.nationalrail.co.uk/service-disruptions/newstead-20261107/",
+      "updatedAt": "2026-11-07T17:44:35+00:00"
+    }
+  ]
+}

@@ -29,7 +29,7 @@ struct JourneyDetailView: View {
                     if journey.trip != nil, journey.connection != nil || !journey.isLastLeg {
                         ConnectionStrip(connection: journey.connection, station: journey.to.name)
                     }
-                    notes
+                    JourneyNotices(journey: journey, status: model.status, notes: notes, stationMessages: model.stationMessages)
                     let rows = StopRow.rows(for: journey, liveCallingPoints: model.liveCallingPoints, now: now)
                     StopList(
                         rows: rows,
@@ -80,24 +80,14 @@ struct JourneyDetailView: View {
         .sheet(isPresented: $addingConnection) {
             AddJourneyView(connectingFrom: journey)
         }
-        .refreshable { await model.refresh() }
+        .refreshable { await model.refresh(force: true) }
         .task { await model.run() }
     }
 
-    /// The server's message ("No longer calling at X", feed gaps) and any connection problem.
-    @ViewBuilder
-    private var notes: some View {
-        let messages = [model.status?.message, model.status?.service?.delayReason, model.status?.service?.cancelReason, model.error].compactMap { $0 }
-        if !messages.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(messages, id: \.self) { Text($0) }
-            }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 18, style: .continuous))
-        }
+    /// The server's message ("No longer calling at X", feed gaps) and any connection problem,
+    /// shown with the station messages (in `JourneyNotices`).
+    private var notes: [String] {
+        [model.status?.message, model.status?.service?.delayReason, model.status?.service?.cancelReason, model.error].compactMap { $0 }
     }
 
     /// A connecting train can follow the last train of a trip (or a journey on its own) until it's over.

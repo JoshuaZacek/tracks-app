@@ -51,8 +51,10 @@ nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
     var leaveNow: Bool
     /// When a change between the trains of a trip becomes at risk or missed, and when it's back on.
     var connections: Bool
+    /// When the train divides on my route: which part to be in, 30 min before it leaves.
+    var divides: Bool
 
-    init(delays: Bool, platforms: Bool, cancellations: Bool, departure: Bool, arrival: Bool, delayThresholdMinutes: Int, liveActivity: Bool, morningSummary: Bool = true, leaveNow: Bool = true, connections: Bool = true) {
+    init(delays: Bool, platforms: Bool, cancellations: Bool, departure: Bool, arrival: Bool, delayThresholdMinutes: Int, liveActivity: Bool, morningSummary: Bool = true, leaveNow: Bool = true, connections: Bool = true, divides: Bool = true) {
         self.delays = delays
         self.platforms = platforms
         self.cancellations = cancellations
@@ -63,13 +65,14 @@ nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
         self.morningSummary = morningSummary
         self.leaveNow = leaveNow
         self.connections = connections
+        self.divides = divides
     }
 
     private enum CodingKeys: String, CodingKey {
-        case delays, platforms, cancellations, departure, arrival, delayThresholdMinutes, liveActivity, morningSummary, leaveNow, connections
+        case delays, platforms, cancellations, departure, arrival, delayThresholdMinutes, liveActivity, morningSummary, leaveNow, connections, divides
     }
 
-    // Servers from before regular journeys and trips don't send the last three: all default to on.
+    // Servers from before regular journeys, trips and dividing trains don't send the last four: all default to on.
     init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         delays = try c.decode(Bool.self, forKey: .delays)
@@ -82,6 +85,7 @@ nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
         morningSummary = try c.decodeIfPresent(Bool.self, forKey: .morningSummary) ?? true
         leaveNow = try c.decodeIfPresent(Bool.self, forKey: .leaveNow) ?? true
         connections = try c.decodeIfPresent(Bool.self, forKey: .connections) ?? true
+        divides = try c.decodeIfPresent(Bool.self, forKey: .divides) ?? true
     }
 
     static let thresholdRange = 1...60
@@ -347,6 +351,9 @@ nonisolated struct LiveSummary: Codable, Hashable, Sendable {
     var isCancelled: Bool
     var stale: Bool
     var checkedAt: Date?
+    /// How busy the train is at my boarding station; nil when Darwin hasn't said
+    /// (and from servers, or journeys cached, before it was sent).
+    var loading: TrainLoading?
 }
 
 // MARK: - Journeys (Phase 3)
@@ -368,6 +375,8 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
     var leaveNow: Bool?
     /// Alerts about the change after this leg of a trip.
     var connections: Bool?
+    /// The alert saying which part of a dividing train to be in.
+    var divides: Bool?
 
     /// What applies to the journey: its own setting where it has one, else the device's.
     func applied(over device: NotificationPrefs) -> NotificationPrefs {
@@ -381,7 +390,8 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
             liveActivity: liveActivity ?? device.liveActivity,
             morningSummary: morningSummary ?? device.morningSummary,
             leaveNow: leaveNow ?? device.leaveNow,
-            connections: connections ?? device.connections
+            connections: connections ?? device.connections,
+            divides: divides ?? device.divides
         )
     }
 
@@ -395,7 +405,8 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
             delayThresholdMinutes: n(delayThresholdMinutes), liveActivity: n(liveActivity),
             stopAlarm: n(stopAlarm),
             morningSummary: n(morningSummary), leaveNow: n(leaveNow),
-            connections: n(connections)
+            connections: n(connections),
+            divides: n(divides)
         )
     }
 }
@@ -414,6 +425,7 @@ nonisolated struct JourneyPrefsUpdate: Encodable, Sendable {
     var morningSummary: Nullable<Bool>?
     var leaveNow: Nullable<Bool>?
     var connections: Nullable<Bool>?
+    var divides: Nullable<Bool>?
 }
 
 /// PUT /v1/journeys/{id}/live-activity.
@@ -468,6 +480,46 @@ nonisolated struct ServerJourney: Decodable, Sendable {
     var toIndex: Int
     var route: [RoutePoint]
     var live: LiveStatus
+    /// Station messages (disruption notices) at my boarding station and
+    /// destination, most severe first; empty from servers before Sprint 3.
+    var stationMessages: [StationMessage]
+}
+
+nonisolated extension ServerJourney {
+    private enum CodingKeys: String, CodingKey {
+        case id, trainUid, runDate, date, headcode, `operator`, from, to, scheduledDeparture, scheduledArrival
+        case bookedPlatform, prefs, templateId, travelMinutes, trip, connection, createdAt, archivedAt
+        case callingPoints, fromIndex, toIndex, route, live, stationMessages
+    }
+
+    // Written out for `stationMessages`, which servers from before Sprint 3 don't send.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        trainUid = try c.decode(String.self, forKey: .trainUid)
+        runDate = try c.decode(String.self, forKey: .runDate)
+        date = try c.decode(String.self, forKey: .date)
+        headcode = try c.decode(String.self, forKey: .headcode)
+        `operator` = try c.decode(Operator.self, forKey: .operator)
+        from = try c.decode(Station.self, forKey: .from)
+        to = try c.decode(Station.self, forKey: .to)
+        scheduledDeparture = try c.decode(Date.self, forKey: .scheduledDeparture)
+        scheduledArrival = try c.decode(Date.self, forKey: .scheduledArrival)
+        bookedPlatform = try c.decodeIfPresent(String.self, forKey: .bookedPlatform)
+        prefs = try c.decode(JourneyPrefs.self, forKey: .prefs)
+        templateId = try c.decodeIfPresent(UUID.self, forKey: .templateId)
+        travelMinutes = try c.decodeIfPresent(Int.self, forKey: .travelMinutes)
+        trip = try c.decodeIfPresent(TripLink.self, forKey: .trip)
+        connection = try c.decodeIfPresent(Connection.self, forKey: .connection)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        archivedAt = try c.decodeIfPresent(Date.self, forKey: .archivedAt)
+        callingPoints = try c.decode([CallingPoint].self, forKey: .callingPoints)
+        fromIndex = try c.decode(Int.self, forKey: .fromIndex)
+        toIndex = try c.decode(Int.self, forKey: .toIndex)
+        route = try c.decode([RoutePoint].self, forKey: .route)
+        live = try c.decode(LiveStatus.self, forKey: .live)
+        stationMessages = try c.decodeIfPresent([StationMessage].self, forKey: .stationMessages) ?? []
+    }
 }
 
 /// A journey in the list: everything a card needs, without the calling pattern.
@@ -663,6 +715,113 @@ nonisolated struct LiveStatus: Codable, Hashable, Sendable {
     var service: LiveService?
     var progress: JourneyProgress?
     var position: TrainPosition?
+    /// The train divides between my boarding station and destination; nil
+    /// otherwise, and once it has left the division station.
+    var divides: TrainDivision?
+    /// How busy the train is at my boarding station.
+    var loading: TrainLoading?
+}
+
+// MARK: - More from Darwin (Sprint 3)
+
+/// One part of a dividing train, after the division.
+nonisolated struct DivisionPortion: Codable, Hashable, Sendable {
+    var destCrs: String?
+    var destName: String
+    /// This part calls at my destination.
+    var yours: Bool
+    /// Which coaches, when Darwin's formation data says: "Front 4 coaches".
+    var note: String?
+}
+
+/// Where the train divides on my route, and which parts go where.
+nonisolated struct TrainDivision: Codable, Hashable, Sendable {
+    var atCrs: String
+    var atName: String
+    /// Scheduled arrival at the division station.
+    var at: Date
+    /// Mine first.
+    var portions: [DivisionPortion]
+    /// "This train divides at Horsham; only some coaches go to Chichester."
+    var message: String
+}
+
+/// How busy, from the server's percentage: quiet < 30, moderate < 60, busy < 85, very busy.
+nonisolated enum LoadingLevel: String, Codable, Hashable, Sendable {
+    case quiet, moderate, busy
+    case veryBusy = "very_busy"
+    /// Anything a newer server sends that this app doesn't know.
+    case unknown
+
+    init(from decoder: any Decoder) throws {
+        self = LoadingLevel(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+    }
+}
+
+/// One coach's loading, front to rear.
+nonisolated struct CoachLoad: Codable, Hashable, Sendable {
+    /// "A1", "7".
+    var number: String
+    /// 0...100.
+    var percentage: Int
+    /// "First", "Standard"…; nil when unknown.
+    var coachClass: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case number, percentage
+        case coachClass = "class"
+    }
+}
+
+/// How busy the train is at my boarding station.
+nonisolated struct TrainLoading: Codable, Hashable, Sendable {
+    /// 0...100.
+    var percentage: Int
+    var level: LoadingLevel
+    /// Front to rear, when Darwin has coach-level loading.
+    var coaches: [CoachLoad]?
+    /// Up to two coach numbers, quietest first; empty without coach data.
+    var quietestCoaches: [String]
+
+    init(percentage: Int, level: LoadingLevel, coaches: [CoachLoad]? = nil, quietestCoaches: [String] = []) {
+        self.percentage = percentage
+        self.level = level
+        self.coaches = coaches
+        self.quietestCoaches = quietestCoaches
+    }
+
+    private enum CodingKeys: String, CodingKey { case percentage, level, coaches, quietestCoaches }
+
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        percentage = try c.decode(Int.self, forKey: .percentage)
+        level = try c.decode(LoadingLevel.self, forKey: .level)
+        coaches = try c.decodeIfPresent([CoachLoad].self, forKey: .coaches)
+        quietestCoaches = try c.decodeIfPresent([String].self, forKey: .quietestCoaches) ?? []
+    }
+}
+
+/// A station message from National Rail (OW): disruption at my boarding station or destination.
+nonisolated struct StationMessage: Codable, Hashable, Identifiable, Sendable {
+    enum Severity: String, Codable, Hashable, Sendable {
+        case normal, minor, major, severe
+        /// Newer values read as normal.
+        init(from decoder: any Decoder) throws {
+            self = Severity(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .normal
+        }
+    }
+
+    var id: String
+    /// Which of my boarding station and destination (CRS) it's shown at.
+    var stations: [String]
+    /// "Train", "Station"…
+    var category: String
+    var severity: Severity
+    /// Plain text.
+    var text: String
+    /// The first link in the message (more information).
+    var url: String?
+    var updatedAt: Date
 }
 
 // MARK: - Trips (Sprint 2)

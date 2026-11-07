@@ -21,6 +21,8 @@ struct JourneyCardModel: Equatable {
     var statusTone: Tone
     /// "Last updated 10:17" when the live feed has gone quiet.
     var staleNote: String?
+    /// How busy it is at my station, until the train leaves.
+    var busy: LoadingLevel?
 
     /// Countdowns start this long before departure (the Live section's window).
     static let countdownWindow: TimeInterval = JourneySections.leavingSoon
@@ -40,6 +42,7 @@ struct JourneyCardModel: Equatable {
         status = nil
         statusTone = .normal
         staleNote = live.flatMap { $0.stale ? $0.checkedAt.map { "Last updated \(RailTime.hhmm($0))" } : nil }
+        busy = BusyDisplay.loading(status: nil, summary: live)?.level
 
         if cancelled {
             status = "Cancelled"

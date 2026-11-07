@@ -137,7 +137,8 @@ extension LiveSummary {
             platform: status.service?.platform,
             isCancelled: status.service?.isCancelled ?? (status.state == .cancelled),
             stale: status.stale,
-            checkedAt: status.checkedAt
+            checkedAt: status.checkedAt,
+            loading: status.loading
         )
     }
 }

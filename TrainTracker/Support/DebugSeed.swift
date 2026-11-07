@@ -7,8 +7,13 @@ import UserNotifications
 /// Launch with `-seedJourneys` to replace this install's journeys (on the server
 /// too) with real trains, laid out like the Journeys mockup: one under way, one leaving
 /// soon, more later today and over the coming week, and one already finished.
+/// One is a Southern train from Victoria to Chichester, which usually divides at Horsham.
+///
+/// `-sampleExtras` adds a division, loading and a station message to every
+/// journey screen (and so its card), for when no real dividing train is running.
 enum DebugSeed {
     static var requested: Bool { ProcessInfo.processInfo.arguments.contains("-seedJourneys") }
+    static var sampleExtras: Bool { ProcessInfo.processInfo.arguments.contains("-sampleExtras") }
 
     private struct Spec {
         var daysAhead: Int
@@ -23,6 +28,7 @@ enum DebugSeed {
         Spec(daysAhead: 0, from: "LDS", to: "YRK", after: .minutesFromNow(-180)), // finished: Past
         Spec(daysAhead: 0, from: "KGX", to: "YRK", after: .minutesFromNow(-40)), // under way: Live
         Spec(daysAhead: 0, from: "YRK", to: "KGX", after: .minutesFromNow(25)), // leaving soon: Live
+        Spec(daysAhead: 0, from: "VIC", to: "CCH", after: .minutesFromNow(50)), // divides at Horsham (Arun Valley trains)
         Spec(daysAhead: 0, from: "KGX", to: "YRK", after: .minutesFromNow(180)),
         Spec(daysAhead: 1, from: "MAN", to: "LDS", after: .at("07:15")),
         Spec(daysAhead: 4, from: "LDS", to: "NCL", after: .at("13:30")),
@@ -58,6 +64,30 @@ enum DebugSeed {
         }
         try? context.save()
         if ProcessInfo.processInfo.arguments.contains("-debugAlert") { await scheduleAlert(in: context) }
+    }
+
+    /// The live status with the sample division (two thirds of the way along)
+    /// and loading, where the server has none, until the train leaves.
+    static func withSampleExtras(_ status: LiveStatus, for journey: Journey) -> LiveStatus {
+        var status = status
+        let departed = status.service?.actualDeparture != nil || [.departed, .arrived, .cancelled].contains(status.state)
+        if status.divides == nil, !departed {
+            var division = TrainDivision.preview(at: journey.departsAt.addingTimeInterval(journey.arrivesAt.timeIntervalSince(journey.departsAt) * 2 / 3))
+            division.atName = "Horsham"
+            division.message = "This train divides at Horsham. Sit in the front 4 coaches for \(journey.to.name)."
+            status.divides = division
+        }
+        if status.loading == nil { status.loading = .preview }
+        return status
+    }
+
+    static func sampleMessages(for journey: Journey) -> [StationMessage] {
+        StationMessage.previews.enumerated().map { index, message in
+            var message = message
+            message.stations = [index == 0 ? journey.from.crs : journey.to.crs]
+            message.text = message.text.replacingOccurrences(of: "Chichester", with: journey.to.name)
+            return message
+        }
     }
 
     /// `-debugAlert`: an alert shaped like the server's (journeyId key, thread
