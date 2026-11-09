@@ -1,4 +1,5 @@
 import MapKit
+import SwiftData
 import SwiftUI
 
 /// A journey in full: the route on a map with the train's position, the
@@ -26,6 +27,9 @@ struct JourneyDetailView: View {
                         .frame(height: 300)
                         .clipShape(.rect(cornerRadius: 24, style: .continuous))
                     JourneyCard(journey: journey, now: now)
+                    if journey.claim != nil {
+                        ClaimCard(journey: journey)
+                    }
                     if journey.trip != nil, journey.connection != nil || !journey.isLastLeg {
                         ConnectionStrip(connection: journey.connection, station: journey.to.name)
                     }
@@ -51,6 +55,20 @@ struct JourneyDetailView: View {
         .navigationSubtitle(journey.operatorName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if journey.canShare() {
+                ToolbarItem(placement: .topBarTrailing) {
+                    // The link is made (or the working one reused) when the share sheet asks for it.
+                    ShareLink(
+                        item: SharedTrainLink(journeyID: journey.id),
+                        subject: Text(shareTitle),
+                        message: Text("Follow my train: \(shareTitle)"),
+                        preview: SharePreview(shareTitle)
+                    ) {
+                        Label("Share train", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityIdentifier("shareJourney")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 // A regular journey opens its settings; any other offers to repeat it.
                 Button(journey.templateId == nil ? "Repeat on weekdays…" : "Regular journey",
@@ -88,6 +106,11 @@ struct JourneyDetailView: View {
     /// shown with the station messages (in `JourneyNotices`).
     private var notes: [String] {
         [model.status?.message, model.status?.service?.delayReason, model.status?.service?.cancelReason, model.error].compactMap { $0 }
+    }
+
+    /// "17:00 London Kings Cross to York".
+    private var shareTitle: String {
+        "\(RailTime.hhmm(journey.departsAt)) \(journey.from.name) to \(journey.to.name)"
     }
 
     /// A connecting train can follow the last train of a trip (or a journey on its own) until it's over.
@@ -171,5 +194,28 @@ struct TrainMarker: View {
             withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { pulse = true }
         }
         .accessibilityLabel("Train")
+    }
+}
+
+/// What the share sheet shares: the journey's public link, made by the server
+/// when the sheet asks for it (one tap, and nothing is made if it's cancelled
+/// before then). The same link while it's working.
+struct SharedTrainLink: Transferable {
+    let journeyID: UUID
+
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation { (link: SharedTrainLink) in
+            try await link.url()
+        }
+    }
+
+    @MainActor
+    private func url() async throws -> URL {
+        let context = JourneyStore.context
+        let id = journeyID
+        guard let journey = try context.fetch(FetchDescriptor<Journey>(predicate: #Predicate { $0.id == id })).first else {
+            throw TracksError(code: .journeyNotFound, message: "This journey is no longer saved", httpStatus: 404)
+        }
+        return try await JourneySync.shared.share(journey, in: context)
     }
 }

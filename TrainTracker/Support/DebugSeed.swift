@@ -14,6 +14,8 @@ import UserNotifications
 enum DebugSeed {
     static var requested: Bool { ProcessInfo.processInfo.arguments.contains("-seedJourneys") }
     static var sampleExtras: Bool { ProcessInfo.processInfo.arguments.contains("-sampleExtras") }
+    /// `-sampleClaim`: a Delay Repay claim (34 min late) on every finished journey.
+    static var sampleClaim: Bool { ProcessInfo.processInfo.arguments.contains("-sampleClaim") }
 
     private struct Spec {
         var daysAhead: Int
@@ -62,6 +64,7 @@ enum DebugSeed {
                 print("Seed \(spec.from)-\(spec.to) failed: \(error.localizedDescription)")
             }
         }
+        if sampleClaim { addSampleClaims(to: (try? context.fetch(FetchDescriptor<Journey>())) ?? []) }
         try? context.save()
         if ProcessInfo.processInfo.arguments.contains("-debugAlert") { await scheduleAlert(in: context) }
     }
@@ -112,6 +115,48 @@ enum DebugSeed {
         content.userInfo = ["journeyId": journey.id.uuidString.lowercased(), "kind": "platform"]
         let request = UNNotificationRequest(identifier: "debugAlert", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false))
         try? await UNUserNotificationCenter.current().add(request)
+    }
+}
+extension DebugSeed {
+    /// The sample claims as changed on this run (ticket, claimed), by journey.
+    @MainActor private static var sampleClaims: [UUID: DelayRepayClaim] = [:]
+
+    /// Gives every finished journey without a real claim the sample one.
+    @MainActor static func addSampleClaims(to journeys: [Journey], now: Date = .now) {
+        for journey in journeys where journey.claim == nil && journey.arrivesAt < now {
+            let claim = sampleClaims[journey.id] ?? DelayRepayClaim(
+                operator: Operator(code: journey.operatorCode, name: journey.operatorName), scheme: "DR15", minimumDelayMinutes: 15,
+                delayMinutes: 34, cancelled: false,
+                band: DelayRepayBand(minMinutes: 30, maxMinutes: 59, singlePercent: 50, returnPercent: 25),
+                actualArrival: journey.arrivesAt.addingTimeInterval(34 * 60),
+                claimUrl: URL(string: "https://www.nationalrail.co.uk/")!,
+                ticketPricePence: nil, ticketType: nil, estimatePence: nil, claimed: false, claimedAt: nil
+            )
+            sampleClaims[journey.id] = claim
+            journey.claim = claim
+        }
+    }
+
+    /// What the server would have done to the sample claim.
+    @MainActor static func apply(_ update: ClaimUpdate, to claim: DelayRepayClaim, journeyID: UUID) -> DelayRepayClaim {
+        var c = claim
+        switch update.ticketPricePence {
+        case .value(let p)?: c.ticketPricePence = p
+        case .null?: c.ticketPricePence = nil
+        case nil: break
+        }
+        switch update.ticketType {
+        case .value(let t)?: c.ticketType = t
+        case .null?: c.ticketType = nil
+        case nil: break
+        }
+        if let claimed = update.claimed {
+            c.claimed = claimed
+            c.claimedAt = claimed ? (c.claimedAt ?? .now) : nil
+        }
+        c.estimatePence = c.estimatePence(price: c.ticketPricePence, type: c.ticketType)
+        sampleClaims[journeyID] = c
+        return c
     }
 }
 #endif

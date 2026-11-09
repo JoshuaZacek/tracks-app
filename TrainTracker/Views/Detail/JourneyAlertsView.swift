@@ -43,6 +43,8 @@ struct JourneyAlertsView: View {
                     choice("Arrival", \.arrival, default: device?.arrival)
                     choice("Dividing train", \.divides, default: device?.divides)
                         .accessibilityIdentifier("dividesChoice")
+                    choice("Delay Repay", \.delayRepay, default: device?.delayRepay)
+                        .accessibilityIdentifier("delayRepayChoice")
                     // The change after this train, when it's followed by another in a trip.
                     if !journey.isLastLeg {
                         choice("Connection", \.connections, default: device?.connections)
@@ -51,10 +53,13 @@ struct JourneyAlertsView: View {
                     Text("Alert me about")
                 } footer: {
                     if !journey.isLastLeg {
-                        Text("Connection: when the change at \(journey.to.name) is at risk or missed, with the next train, and when it's back on. Dividing train: which part to be in, if the train divides before \(journey.to.name). “Default” follows Settings.")
+                        Text("Connection: when the change at \(journey.to.name) is at risk or missed, with the next train, and when it's back on. Dividing train: which part to be in, if the train divides before \(journey.to.name). Delay Repay: when the journey can be claimed for. “Default” follows Settings.")
                     } else {
-                        Text("Dividing train: which part to be in, if the train divides before \(journey.to.name). “Default” follows Settings, so changing it there changes this journey too.")
+                        Text("Dividing train: which part to be in, if the train divides before \(journey.to.name). Delay Repay: when the journey ended late enough to claim. “Default” follows Settings, so changing it there changes this journey too.")
                     }
+                }
+                if let share = journey.share {
+                    sharingSection(share)
                 }
                 if let error {
                     Section { Label(error, systemImage: "wifi.slash").foregroundStyle(.secondary) }
@@ -114,6 +119,36 @@ struct JourneyAlertsView: View {
         guard journey.archivedAt == nil else { return false }
         if let state = journey.live?.state, [.arrived, .cancelled].contains(state) { return false }
         return journey.departsAt.timeIntervalSinceNow < 12 * 3600 && journey.arrivesAt > .now.addingTimeInterval(-3600)
+    }
+
+    // MARK: Sharing
+
+    @State private var stoppingShare = false
+
+    private func sharingSection(_ share: JourneyShare) -> some View {
+        Section {
+            ShareLink(item: share.url) {
+                Label("Share link again", systemImage: "square.and.arrow.up")
+            }
+            Button("Stop sharing", systemImage: "eye.slash", role: .destructive) {
+                Task {
+                    stoppingShare = true
+                    defer { stoppingShare = false }
+                    do {
+                        try await JourneySync.shared.stopSharing(journey, in: context)
+                        error = nil
+                    } catch {
+                        self.error = "Couldn't stop sharing: \(error.localizedDescription)"
+                    }
+                }
+            }
+            .disabled(stoppingShare)
+            .accessibilityIdentifier("stopSharing")
+        } header: {
+            Text("Sharing")
+        } footer: {
+            Text("Anyone with the link can follow this train until \(RailTime.hhmm(share.expiresAt)), \(RailTime.dayLabel(for: share.expiresAt).lowercased()). They see the train and your two stations, nothing else. Stopping turns the link off for everyone.")
+        }
     }
 
     // MARK: Leaving for the station

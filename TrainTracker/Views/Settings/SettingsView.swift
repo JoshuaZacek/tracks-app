@@ -124,10 +124,12 @@ struct SettingsView: View {
                 .accessibilityIdentifier("connectionsPref")
             Toggle("Dividing trains", isOn: prefs.divides)
                 .accessibilityIdentifier("dividesPref")
+            Toggle("Delay Repay", isOn: prefs.delayRepay)
+                .accessibilityIdentifier("delayRepayPref")
         } header: {
             Text("Alert me about")
         } footer: {
-            Text("For every journey, unless you change it on the journey. Platform alerts come when the platform is announced or changes; arrival alerts 10 minutes before and on arriving; connection alerts when a change between trains is at risk or missed, with the next train; dividing train alerts 30 minutes before a train that divides on the way leaves, saying which part to be in.")
+            Text("For every journey, unless you change it on the journey. Platform alerts come when the platform is announced or changes; arrival alerts 10 minutes before and on arriving; connection alerts when a change between trains is at risk or missed, with the next train; dividing train alerts 30 minutes before a train that divides on the way leaves, saying which part to be in; Delay Repay alerts when a journey ends late enough to claim compensation.")
         }
         .disabled(!push.authorization.allowsAlerts && push.authorization != .notDetermined)
     }

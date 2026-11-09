@@ -44,6 +44,10 @@ final class Journey {
     var trip: TripLink?
     /// The change from this leg to the next of its trip; nil for the last leg, or no trip.
     var connection: Connection?
+    /// Delay Repay this journey may be able to claim, once it's over.
+    var claim: DelayRepayClaim?
+    /// The public link while the journey is shared.
+    var share: JourneyShare?
 
     init(id: UUID = UUID(), savedAt: Date = .now, date: String, train: TrainDetails, fromIndex: Int, toIndex: Int) {
         self.id = id
@@ -81,6 +85,8 @@ final class Journey {
         self.travelMinutes = server.travelMinutes
         self.trip = server.trip
         self.connection = server.connection
+        self.claim = server.claim
+        self.share = server.share
     }
 
     /// Takes the latest state from a full journey (after a save or change).
@@ -92,6 +98,8 @@ final class Journey {
         travelMinutes = server.travelMinutes
         trip = server.trip
         connection = server.connection
+        claim = server.claim
+        share = server.share
         self.syncedAt = syncedAt
     }
 
@@ -105,6 +113,8 @@ final class Journey {
         travelMinutes = item.travelMinutes
         trip = item.trip
         connection = item.connection
+        claim = item.claim
+        share = item.share
         self.syncedAt = syncedAt
     }
 
@@ -119,6 +129,17 @@ final class Journey {
 
     /// The last train of its trip, or a journey on its own: a connecting train can follow it.
     var isLastLeg: Bool { trip.map { $0.leg == $0.legs } ?? true }
+
+    /// "You may be able to claim": a claim the user hasn't marked as made.
+    var showsClaimCard: Bool { claim.map { !$0.claimed } ?? false }
+
+    /// A share link works until 6 hours after the scheduled arrival (the server's rule), so
+    /// sharing is offered until then: not once the train has arrived, or the journey was put away.
+    func canShare(now: Date = .now) -> Bool {
+        archivedAt == nil && live?.state != .arrived && now < arrivesAt.addingTimeInterval(Self.shareAfterArrival)
+    }
+
+    static let shareAfterArrival: TimeInterval = 6 * 3600
 
     /// Calling points between boarding and alighting (exclusive).
     var intermediateStops: Int { max(0, toIndex - fromIndex - 1) }

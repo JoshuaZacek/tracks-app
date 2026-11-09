@@ -50,6 +50,12 @@ struct JourneyCard: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+                if journey.showsClaimCard {
+                    Label(Self.claimText, systemImage: "sterlingsign.circle")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.tint)
+                        .padding(.top, 2)
+                }
             }
         }
         .padding(14)
@@ -66,8 +72,12 @@ struct JourneyCard: View {
         if let busy = model.busy?.text { parts.append(busy) }
         if let status = model.status { parts.append(status) }
         if let stale = model.staleNote { parts.append(stale) }
+        if journey.showsClaimCard { parts.append(Self.claimText) }
         return parts.joined(separator: ", ")
     }
+
+    static let claimText = "You may be able to claim Delay Repay"
+
 }
 
 /// The one rhythm for everything that says "live": the Live dot's ring and

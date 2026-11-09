@@ -141,6 +141,17 @@ final class TracksClient {
         let _: Empty = try await request("DELETE", "/v1/journeys/\(id.uuidString.lowercased())")
     }
 
+    /// A public link to the journey's live status: a new one, or the one already working.
+    /// Errors: `journey_over` (6 hours after the scheduled arrival).
+    func shareJourney(id: UUID) async throws -> JourneyShare {
+        try await request("POST", "/v1/journeys/\(id.uuidString.lowercased())/share")
+    }
+
+    /// Every link to the journey stops working.
+    func stopSharingJourney(id: UUID) async throws {
+        let _: Empty = try await request("DELETE", "/v1/journeys/\(id.uuidString.lowercased())/share")
+    }
+
     // MARK: - Regular journeys
 
     /// This install's regular journeys, by departure time.

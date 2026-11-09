@@ -53,8 +53,10 @@ nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
     var connections: Bool
     /// When the train divides on my route: which part to be in, 30 min before it leaves.
     var divides: Bool
+    /// When a journey ends late enough (or cancelled) to claim Delay Repay.
+    var delayRepay: Bool
 
-    init(delays: Bool, platforms: Bool, cancellations: Bool, departure: Bool, arrival: Bool, delayThresholdMinutes: Int, liveActivity: Bool, morningSummary: Bool = true, leaveNow: Bool = true, connections: Bool = true, divides: Bool = true) {
+    init(delays: Bool, platforms: Bool, cancellations: Bool, departure: Bool, arrival: Bool, delayThresholdMinutes: Int, liveActivity: Bool, morningSummary: Bool = true, leaveNow: Bool = true, connections: Bool = true, divides: Bool = true, delayRepay: Bool = true) {
         self.delays = delays
         self.platforms = platforms
         self.cancellations = cancellations
@@ -66,13 +68,14 @@ nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
         self.leaveNow = leaveNow
         self.connections = connections
         self.divides = divides
+        self.delayRepay = delayRepay
     }
 
     private enum CodingKeys: String, CodingKey {
-        case delays, platforms, cancellations, departure, arrival, delayThresholdMinutes, liveActivity, morningSummary, leaveNow, connections, divides
+        case delays, platforms, cancellations, departure, arrival, delayThresholdMinutes, liveActivity, morningSummary, leaveNow, connections, divides, delayRepay
     }
 
-    // Servers from before regular journeys, trips and dividing trains don't send the last four: all default to on.
+    // Servers from before regular journeys, trips, dividing trains and Delay Repay don't send the last five: all default to on.
     init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         delays = try c.decode(Bool.self, forKey: .delays)
@@ -86,6 +89,7 @@ nonisolated struct NotificationPrefs: Codable, Hashable, Sendable {
         leaveNow = try c.decodeIfPresent(Bool.self, forKey: .leaveNow) ?? true
         connections = try c.decodeIfPresent(Bool.self, forKey: .connections) ?? true
         divides = try c.decodeIfPresent(Bool.self, forKey: .divides) ?? true
+        delayRepay = try c.decodeIfPresent(Bool.self, forKey: .delayRepay) ?? true
     }
 
     static let thresholdRange = 1...60
@@ -159,6 +163,8 @@ nonisolated struct TracksError: LocalizedError, Sendable {
         case templateNotFound = "template_not_found"
         case tripNotFound = "trip_not_found"
         case notConnected = "not_connected"
+        case shareNotFound = "share_not_found"
+        case journeyOver = "journey_over"
         case stationNotOnRoute = "station_not_on_route"
         case scheduleNotLoaded = "schedule_not_loaded"
         case rateLimited = "rate_limited"
@@ -377,6 +383,8 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
     var connections: Bool?
     /// The alert saying which part of a dividing train to be in.
     var divides: Bool?
+    /// The alert when the journey can be claimed for (Delay Repay).
+    var delayRepay: Bool?
 
     /// What applies to the journey: its own setting where it has one, else the device's.
     func applied(over device: NotificationPrefs) -> NotificationPrefs {
@@ -391,7 +399,8 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
             morningSummary: morningSummary ?? device.morningSummary,
             leaveNow: leaveNow ?? device.leaveNow,
             connections: connections ?? device.connections,
-            divides: divides ?? device.divides
+            divides: divides ?? device.divides,
+            delayRepay: delayRepay ?? device.delayRepay
         )
     }
 
@@ -406,7 +415,8 @@ nonisolated struct JourneyPrefs: Codable, Hashable, Sendable {
             stopAlarm: n(stopAlarm),
             morningSummary: n(morningSummary), leaveNow: n(leaveNow),
             connections: n(connections),
-            divides: n(divides)
+            divides: n(divides),
+            delayRepay: n(delayRepay)
         )
     }
 }
@@ -426,6 +436,7 @@ nonisolated struct JourneyPrefsUpdate: Encodable, Sendable {
     var leaveNow: Nullable<Bool>?
     var connections: Nullable<Bool>?
     var divides: Nullable<Bool>?
+    var delayRepay: Nullable<Bool>?
 }
 
 /// PUT /v1/journeys/{id}/live-activity.
@@ -448,6 +459,8 @@ nonisolated struct UpdateJourneyRequest: Encodable, Sendable {
     var prefs: JourneyPrefsUpdate?
     /// Minutes to get to the station (0...240); `.null` clears it.
     var travelMinutes: Nullable<Int>?
+    /// The ticket (for the Delay Repay estimate) and whether it's been claimed.
+    var claim: ClaimUpdate?
 }
 
 /// A saved journey as the server stores it, with its calling pattern snapshot and live status.
@@ -473,6 +486,10 @@ nonisolated struct ServerJourney: Decodable, Sendable {
     var trip: TripLink?
     /// The change from this leg to the next; nil for the last leg, or no trip.
     var connection: Connection?
+    /// Delay Repay this journey may be able to claim, once it's over; nil otherwise.
+    var claim: DelayRepayClaim?
+    /// The public link while it's shared.
+    var share: JourneyShare?
     var createdAt: Date
     var archivedAt: Date?
     var callingPoints: [CallingPoint]
@@ -488,7 +505,7 @@ nonisolated struct ServerJourney: Decodable, Sendable {
 nonisolated extension ServerJourney {
     private enum CodingKeys: String, CodingKey {
         case id, trainUid, runDate, date, headcode, `operator`, from, to, scheduledDeparture, scheduledArrival
-        case bookedPlatform, prefs, templateId, travelMinutes, trip, connection, createdAt, archivedAt
+        case bookedPlatform, prefs, templateId, travelMinutes, trip, connection, claim, share, createdAt, archivedAt
         case callingPoints, fromIndex, toIndex, route, live, stationMessages
     }
 
@@ -511,6 +528,8 @@ nonisolated extension ServerJourney {
         travelMinutes = try c.decodeIfPresent(Int.self, forKey: .travelMinutes)
         trip = try c.decodeIfPresent(TripLink.self, forKey: .trip)
         connection = try c.decodeIfPresent(Connection.self, forKey: .connection)
+        claim = try c.decodeIfPresent(DelayRepayClaim.self, forKey: .claim)
+        share = try c.decodeIfPresent(JourneyShare.self, forKey: .share)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         archivedAt = try c.decodeIfPresent(Date.self, forKey: .archivedAt)
         callingPoints = try c.decode([CallingPoint].self, forKey: .callingPoints)
@@ -540,6 +559,8 @@ nonisolated struct JourneyListItem: Decodable, Sendable {
     var travelMinutes: Int?
     var trip: TripLink?
     var connection: Connection?
+    var claim: DelayRepayClaim?
+    var share: JourneyShare?
     var createdAt: Date
     var archivedAt: Date?
     var live: LiveSummary
@@ -917,4 +938,66 @@ nonisolated struct CreateTripRequest: Encodable, Sendable {
 nonisolated struct ReplaceLegRequest: Encodable, Sendable {
     var trainUid: String
     var runDate: String
+}
+
+// MARK: - Delay Repay and sharing (Sprint 4)
+
+nonisolated enum TicketType: String, Codable, Hashable, Sendable {
+    case single, `return`
+    /// Anything a newer server sends that this app doesn't know.
+    case unknown
+
+    init(from decoder: any Decoder) throws {
+        self = TicketType(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+    }
+}
+
+/// How much of the fare a delay band pays.
+nonisolated struct DelayRepayBand: Codable, Hashable, Sendable {
+    var minMinutes: Int
+    /// Nil for the top band (2 hours or more).
+    var maxMinutes: Int?
+    /// Of a single fare.
+    var singlePercent: Double
+    /// Of a return fare (delayed one way).
+    var returnPercent: Double
+}
+
+/// What a journey may be able to claim, once it's over: it arrived late enough
+/// for the operator's Delay Repay scheme, or was cancelled.
+nonisolated struct DelayRepayClaim: Codable, Hashable, Sendable {
+    var `operator`: Operator
+    /// "DR15" or "DR30".
+    var scheme: String
+    var minimumDelayMinutes: Int
+    /// Late at my destination; nil when cancelled.
+    var delayMinutes: Int?
+    var cancelled: Bool
+    /// Nil when cancelled: it depends on the train taken instead (or a refund).
+    var band: DelayRepayBand?
+    /// At my destination; nil when cancelled.
+    var actualArrival: Date?
+    /// The operator's claim form or Delay Repay page.
+    var claimUrl: URL
+    var ticketPricePence: Int?
+    var ticketType: TicketType?
+    /// The server's estimate from the ticket; nil without a band, price or type.
+    var estimatePence: Int?
+    var claimed: Bool
+    var claimedAt: Date?
+}
+
+/// PATCH a journey's claim: `.value` sets, `.null` clears, nil leaves it.
+nonisolated struct ClaimUpdate: Encodable, Sendable {
+    var ticketPricePence: Nullable<Int>?
+    var ticketType: Nullable<TicketType>?
+    /// True hides the claim card.
+    var claimed: Bool?
+}
+
+/// The public link to a journey while it's shared.
+nonisolated struct JourneyShare: Codable, Hashable, Sendable {
+    var url: URL
+    /// 6 hours after the scheduled arrival.
+    var expiresAt: Date
 }

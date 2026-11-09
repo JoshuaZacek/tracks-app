@@ -168,6 +168,59 @@ final class TrainTrackerUITests: XCTestCase {
 
     /// UI tests use the development server on this Mac (`npm run dev` in
     /// ~/Desktop/tracks-server), never the deployed one.
+    /// `-sampleClaim` puts a sample Delay Repay claim on finished journeys. Opens the
+    /// finished one: the claim card, then "Claimed" hides it. The share button is
+    /// on every journey that hasn't finished.
+    @MainActor
+    func testClaimCardOnAFinishedJourney() throws {
+        let app = XCUIApplication()
+        app.launchArguments = Self.localServer + ["-uiTesting", "-seedJourneys", "-sampleClaim"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Upcoming"].waitForExistence(timeout: 30))
+        sleep(2) // the sample claims arrive with the first refresh
+        // Past sits at the bottom of the (lazy) list.
+        let past = app.staticTexts["Past"]
+        for _ in 0..<8 where !past.isHittable { app.swipeUp() }
+        XCTAssertTrue(past.exists)
+        // The finished journey's card says there's a claim (VoiceOver reads the card as one).
+        let claimable = NSPredicate(format: "identifier == 'journeyCard' AND label CONTAINS 'Delay Repay'")
+        let card = app.descendants(matching: .any).matching(claimable).firstMatch
+        if (past.value as? String) == "Collapsed" { past.tap() } // Past may be folded away
+        for _ in 0..<4 where !card.exists { app.swipeUp() }
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        card.tap()
+
+        let claimCard = app.descendants(matching: .any)["claimCard"].firstMatch
+        XCTAssertTrue(claimCard.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["You may be able to claim"].exists)
+        XCTAssertTrue(app.buttons["copyClaimDetails"].exists)
+        XCTAssertTrue(app.links["openClaimForm"].exists || app.buttons["openClaimForm"].exists)
+        attachScreenshot(of: app, named: "Claim card")
+
+        let toggle = app.switches["claimedToggle"].firstMatch
+        for _ in 0..<4 where !toggle.isHittable { app.swipeUp() }
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap() // the switch itself, not its label
+        XCTAssertTrue(app.staticTexts["Claimed"].waitForExistence(timeout: 10))
+        attachScreenshot(of: app, named: "Claimed")
+    }
+
+    @MainActor
+    func testShareButtonOnAnUpcomingJourney() throws {
+        let app = XCUIApplication()
+        app.launchArguments = Self.localServer + ["-uiTesting", "-seedJourneys"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Upcoming"].waitForExistence(timeout: 30))
+        app.descendants(matching: .any).matching(identifier: "journeyCard").firstMatch.tap()
+        let share = app.buttons["shareJourney"]
+        XCTAssertTrue(share.waitForExistence(timeout: 15))
+        share.tap()
+        // The share sheet, once the server has made the link.
+        XCTAssertTrue(app.otherElements["ActivityListView"].waitForExistence(timeout: 15) || app.navigationBars["UIActivityContentView"].waitForExistence(timeout: 5))
+        attachScreenshot(of: app, named: "Share sheet")
+    }
+
     private static let localServer = ["-tracksBaseURL", "http://localhost:3000"]
 
     private func attachScreenshot(of app: XCUIApplication, named name: String) {

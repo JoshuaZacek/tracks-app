@@ -100,6 +100,38 @@ final class JourneySync {
         try? context.save()
     }
 
+    // MARK: Delay Repay and sharing
+
+    /// The ticket (for the estimate) or "Claimed" on a journey's Delay Repay claim.
+    func setClaim(_ update: ClaimUpdate, for journey: Journey, in context: ModelContext) async throws {
+        let server = try await client.updateJourney(id: journey.id, UpdateJourneyRequest(claim: update))
+        let before = journey.claim
+        journey.update(from: server)
+        #if DEBUG
+        // -sampleClaim: the server has no claim for the sample one, so keep it here.
+        if DebugSeed.sampleClaim, server.claim == nil, let before {
+            journey.claim = DebugSeed.apply(update, to: before, journeyID: journey.id)
+        }
+        #endif
+        try? context.save()
+    }
+
+    /// A link to share the journey; the same one while it's working.
+    func share(_ journey: Journey, in context: ModelContext) async throws -> URL {
+        if let share = journey.share, share.expiresAt > .now { return share.url }
+        let share = try await client.shareJourney(id: journey.id)
+        journey.share = share
+        try? context.save()
+        return share.url
+    }
+
+    /// The link stops working for everyone it was sent to.
+    func stopSharing(_ journey: Journey, in context: ModelContext) async throws {
+        try await client.stopSharingJourney(id: journey.id)
+        journey.share = nil
+        try? context.save()
+    }
+
     // MARK: Regular journeys
 
     /// Repeats a journey on the days given. The server links this journey to the
@@ -319,6 +351,9 @@ final class JourneySync {
         for journey in cached where journey.syncedAt != nil && !onServer.contains(journey.id) {
             context.delete(journey)
         }
+        #if DEBUG
+        if DebugSeed.sampleClaim { DebugSeed.addSampleClaims(to: try context.fetch(FetchDescriptor<Journey>())) }
+        #endif
     }
 
     @discardableResult

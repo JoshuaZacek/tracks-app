@@ -151,4 +151,41 @@ struct TracksAPITests {
             #expect(index.describe(latitude: lat, longitude: lon) == label, "\(lat), \(lon)")
         }
     }
+
+    // MARK: - Sprint 4: sharing and Delay Repay
+
+    @Test func sharesAJourneyAndStopsSharing() async throws {
+        let client = Self.shared
+        let date = RailTime.ymd(.now.addingTimeInterval(86_400))
+        let d = try #require(try await client.departures(from: "KGX", date: date, to: "YRK", after: "12:00", limit: 1).departures.first)
+        let journey = try await client.createJourney(CreateJourneyRequest(trainUid: d.trainUid, runDate: d.runDate, fromCrs: "KGX", toCrs: "YRK"))
+        defer { Task { try? await client.deleteJourney(id: journey.id) } }
+
+        let share = try await client.shareJourney(id: journey.id)
+        #expect(share.url.path.hasPrefix("/s/"))
+        #expect(try await client.shareJourney(id: journey.id).url == share.url) // the same link again
+        #expect(try await client.journey(id: journey.id).share?.url == share.url)
+
+        // Anyone with the link: no token needed.
+        let token = share.url.lastPathComponent
+        let (_, response) = try await URLSession.shared.data(from: localTracksServer.appending(path: "v1/shared/\(token)"))
+        #expect((response as? HTTPURLResponse)?.statusCode == 200)
+
+        try await client.stopSharingJourney(id: journey.id)
+        #expect(try await client.journey(id: journey.id).share == nil)
+        let (_, gone) = try await URLSession.shared.data(from: localTracksServer.appending(path: "v1/shared/\(token)"))
+        #expect((gone as? HTTPURLResponse)?.statusCode == 404)
+    }
+
+    @Test func journeysWithoutAClaimAcceptClaimUpdates() async throws {
+        let client = Self.shared
+        let date = RailTime.ymd(.now.addingTimeInterval(86_400))
+        // A different train from the sharing test (they run in parallel on the same device).
+        let d = try #require(try await client.departures(from: "YRK", date: date, to: "KGX", after: "15:00", limit: 1).departures.first)
+        let journey = try await client.createJourney(CreateJourneyRequest(trainUid: d.trainUid, runDate: d.runDate, fromCrs: "YRK", toCrs: "KGX"))
+        defer { Task { try? await client.deleteJourney(id: journey.id) } }
+        #expect(journey.claim == nil) // not over yet
+        let updated = try await client.updateJourney(id: journey.id, UpdateJourneyRequest(claim: ClaimUpdate(ticketPricePence: .value(4520), ticketType: .value(.single))))
+        #expect(updated.claim == nil)
+    }
 }
